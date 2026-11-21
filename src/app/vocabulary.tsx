@@ -1,8 +1,6 @@
-import { Ionicons } from '@expo/vector-icons';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { router } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import {
   getVocabularyCategories,
@@ -11,8 +9,22 @@ import {
   recordVocabularyProgress,
   VocabularyWord,
 } from '@/api/learning';
-import { AppText, Button, EmptyView, ErrorView, LoadingView, Screen } from '@/components/ui/kit';
-import { radius, space, useColors } from '@/theme';
+import {
+  AppText,
+  Badge,
+  Button,
+  Card,
+  Chip,
+  EmptyView,
+  ErrorView,
+  LoadingView,
+  ProgressBar,
+  Screen,
+  ScreenHeader,
+  Segmented,
+} from '@/components/ui/kit';
+import { haptic } from '@/lib/haptics';
+import { elevation, radius, space, useColors } from '@/theme';
 
 export default function VocabularyHubScreen() {
   const c = useColors();
@@ -45,6 +57,8 @@ export default function VocabularyHubScreen() {
     setSaving(true);
     try {
       await recordVocabularyProgress(word.id, knewIt);
+      if (knewIt) haptic.success();
+      else haptic.warning();
       setRevealed(false);
       const list = practiceQ.data ?? [];
       if (practiceIdx + 1 < list.length) {
@@ -60,87 +74,38 @@ export default function VocabularyHubScreen() {
 
   return (
     <Screen>
-      <View style={styles.headerRow}>
-        <Pressable onPress={() => (router.canGoBack() ? router.back() : router.replace('/(tabs)/learn'))} hitSlop={10}>
-          <Ionicons name="arrow-back" size={24} color={c.text} />
-        </Pressable>
-        <View style={{ flex: 1 }}>
-          <AppText variant="title" style={{ fontSize: 22 }}>
-            Vocabulary & Grammar Hub
-          </AppText>
-          <AppText variant="small" muted>
-            Spaced-repetition flashcards & exam word bank
-          </AppText>
-        </View>
-      </View>
-
-      {/* Mode Switcher */}
-      <View style={[styles.segmented, { backgroundColor: c.surface, borderColor: c.border }]}>
-        <Pressable
-          onPress={() => setMode('browse')}
-          style={[styles.segmentBtn, mode === 'browse' ? { backgroundColor: c.primary } : null]}>
-          <AppText
-            variant="small"
-            style={{ color: mode === 'browse' ? c.primaryText : c.text, fontWeight: '700' }}>
-            Word Bank
-          </AppText>
-        </Pressable>
-        <Pressable
-          onPress={() => {
-            setMode('practice');
+      <ScreenHeader title="Vocabulary" subtitle="Word bank and flashcard practice" />
+      <Segmented
+        value={mode}
+        onChange={(m) => {
+          setMode(m);
+          if (m === 'practice') {
             setPracticeIdx(0);
             setRevealed(false);
-          }}
-          style={[styles.segmentBtn, mode === 'practice' ? { backgroundColor: c.primary } : null]}>
-          <AppText
-            variant="small"
-            style={{ color: mode === 'practice' ? c.primaryText : c.text, fontWeight: '700' }}>
-            Flashcard Practice
-          </AppText>
-        </Pressable>
-      </View>
+          }
+        }}
+        options={[
+          { key: 'browse', label: 'Word bank' },
+          { key: 'practice', label: 'Flashcards' },
+        ]}
+      />
 
       {mode === 'browse' ? (
         <>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginVertical: space.md }}>
-            <View style={{ flexDirection: 'row', gap: space.xs }}>
-              <Pressable
-                onPress={() => setSelectedCategory(undefined)}
-                style={[
-                  styles.chip,
-                  {
-                    backgroundColor: !selectedCategory ? c.primary : c.surface,
-                    borderColor: c.border,
-                  },
-                ]}>
-                <AppText
-                  variant="small"
-                  style={{ color: !selectedCategory ? c.primaryText : c.text, fontWeight: '600' }}>
-                  All Words
-                </AppText>
-              </Pressable>
-              {(catsQ.data ?? []).map((cat) => {
-                const active = selectedCategory === cat.category;
-                return (
-                  <Pressable
-                    key={cat.category}
-                    onPress={() => setSelectedCategory(active ? undefined : cat.category)}
-                    style={[
-                      styles.chip,
-                      {
-                        backgroundColor: active ? c.primary : c.surface,
-                        borderColor: c.border,
-                      },
-                    ]}>
-                    <AppText
-                      variant="small"
-                      style={{ color: active ? c.primaryText : c.text }}>
-                      {cat.category} ({cat.word_count})
-                    </AppText>
-                  </Pressable>
-                );
-              })}
-            </View>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={{ marginHorizontal: -16 }}
+            contentContainerStyle={{ paddingHorizontal: 16, gap: 8, paddingVertical: 10 }}>
+            <Chip label="All words" selected={!selectedCategory} onPress={() => setSelectedCategory(undefined)} />
+            {(catsQ.data ?? []).map((cat) => (
+              <Chip
+                key={cat.category}
+                label={`${cat.category} · ${cat.word_count}`}
+                selected={selectedCategory === cat.category}
+                onPress={() => setSelectedCategory(selectedCategory === cat.category ? undefined : cat.category)}
+              />
+            ))}
           </ScrollView>
 
           {wordsQ.isLoading ? (
@@ -152,24 +117,18 @@ export default function VocabularyHubScreen() {
           ) : (
             <View style={{ gap: space.sm }}>
               {(wordsQ.data?.words ?? []).map((w: VocabularyWord) => (
-                <View
-                  key={w.id}
-                  style={[styles.card, { backgroundColor: c.surface, borderColor: c.border }]}>
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                    <AppText variant="heading">{w.word}</AppText>
-                    {w.category ? (
-                      <AppText variant="small" muted>
-                        {w.category}
-                      </AppText>
-                    ) : null}
+                <Card key={w.id} style={{ gap: 4 }}>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Text style={{ color: c.primary, fontSize: 19, fontWeight: '800', letterSpacing: -0.3 }}>{w.word}</Text>
+                    {w.category ? <Badge label={w.category} tone="muted" /> : null}
                   </View>
-                  <AppText style={{ marginTop: 4 }}>{w.definition}</AppText>
+                  <AppText>{w.definition}</AppText>
                   {w.example_sentence ? (
-                    <AppText variant="small" muted style={{ marginTop: 4, fontStyle: 'italic' }}>
+                    <AppText variant="small" muted style={{ fontStyle: 'italic' }}>
                       &ldquo;{w.example_sentence}&rdquo;
                     </AppText>
                   ) : null}
-                </View>
+                </Card>
               ))}
             </View>
           )}
@@ -179,41 +138,46 @@ export default function VocabularyHubScreen() {
       ) : practiceQ.isError ? (
         <ErrorView message={practiceQ.error.message} onRetry={() => practiceQ.refetch()} />
       ) : (practiceQ.data ?? []).length === 0 ? (
-        <EmptyView
-          title="All Caught Up!"
-          message="You have reviewed all due flashcards for now."
-        />
+        <EmptyView title="All caught up!" message="You have reviewed all due flashcards for now." />
       ) : (
         (() => {
           const list = practiceQ.data ?? [];
           const current = list[practiceIdx] ?? list[0];
           return (
             <View style={{ marginTop: space.lg, gap: space.md }}>
-              <AppText variant="small" muted style={{ textAlign: 'center' }}>
-                Card {practiceIdx + 1} of {list.length} · Mastery:{' '}
-                {(current.mastery_level || 'new').toUpperCase()}
-              </AppText>
+              <View style={{ gap: 6 }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                  <AppText variant="small" muted>
+                    Card {practiceIdx + 1} of {list.length}
+                  </AppText>
+                  <Badge label={current.mastery_level || 'new'} tone="primary" />
+                </View>
+                <ProgressBar value={(practiceIdx + 1) / list.length} />
+              </View>
 
               <Pressable
-                onPress={() => setRevealed(!revealed)}
-                style={[styles.flashcard, { backgroundColor: c.surface, borderColor: c.border }]}>
-                <AppText variant="title" style={{ textAlign: 'center' }}>
+                accessibilityRole="button"
+                accessibilityLabel={revealed ? 'Hide meaning' : 'Reveal meaning'}
+                onPress={() => {
+                  haptic.light();
+                  setRevealed(!revealed);
+                }}
+                style={[styles.flashcard, { backgroundColor: revealed ? c.primarySoft : c.surface }, elevation(c, 2)]}>
+                <Text style={{ color: c.text, fontSize: 32, fontWeight: '800', letterSpacing: -0.8, textAlign: 'center' }}>
                   {current.word}
-                </AppText>
+                </Text>
                 {revealed ? (
                   <View style={{ marginTop: space.lg, alignItems: 'center', gap: space.sm }}>
-                    <AppText style={{ textAlign: 'center', fontSize: 16 }}>
-                      {current.definition}
-                    </AppText>
+                    <AppText style={{ textAlign: 'center', fontSize: 16 }}>{current.definition}</AppText>
                     {current.example_sentence ? (
-                      <AppText variant="small" muted style={{ textAlign: 'center' }}>
+                      <AppText variant="small" muted style={{ textAlign: 'center', fontStyle: 'italic' }}>
                         &ldquo;{current.example_sentence}&rdquo;
                       </AppText>
                     ) : null}
                   </View>
                 ) : (
                   <AppText variant="small" muted style={{ marginTop: space.lg }}>
-                    Tap card to reveal meaning
+                    Tap to reveal meaning
                   </AppText>
                 )}
               </Pressable>
@@ -221,23 +185,14 @@ export default function VocabularyHubScreen() {
               {revealed ? (
                 <View style={{ flexDirection: 'row', gap: space.sm }}>
                   <View style={{ flex: 1 }}>
-                    <Button
-                      title="Need Review"
-                      variant="danger"
-                      loading={saving}
-                      onPress={() => handleAnswerPractice(current, false)}
-                    />
+                    <Button title="Need review" variant="danger" loading={saving} onPress={() => handleAnswerPractice(current, false)} />
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Button
-                      title="I Knew It ✓"
-                      loading={saving}
-                      onPress={() => handleAnswerPractice(current, true)}
-                    />
+                    <Button title="I knew it" loading={saving} onPress={() => handleAnswerPractice(current, true)} />
                   </View>
                 </View>
               ) : (
-                <Button title="Show Meaning" variant="outline" onPress={() => setRevealed(true)} />
+                <Button title="Show meaning" variant="outline" onPress={() => setRevealed(true)} />
               )}
             </View>
           );
@@ -248,42 +203,11 @@ export default function VocabularyHubScreen() {
 }
 
 const styles = StyleSheet.create({
-  headerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space.md,
-    marginBottom: space.md,
-  },
-  segmented: {
-    flexDirection: 'row',
-    borderRadius: radius.md,
-    borderWidth: 1,
-    padding: 4,
-  },
-  segmentBtn: {
-    flex: 1,
-    paddingVertical: space.sm,
-    borderRadius: radius.sm,
-    alignItems: 'center',
-  },
-  chip: {
-    paddingHorizontal: space.md,
-    paddingVertical: 6,
-    borderRadius: radius.sm,
-    borderWidth: 1,
-  },
-  card: {
-    padding: space.md,
-    borderRadius: radius.md,
-    borderWidth: 1,
-  },
   flashcard: {
-    minHeight: 230,
+    minHeight: 260,
     padding: space.xl,
-    borderRadius: radius.lg,
-    borderWidth: 1.5,
+    borderRadius: radius.xl,
     alignItems: 'center',
     justifyContent: 'center',
   },
 });
-

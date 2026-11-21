@@ -1,8 +1,7 @@
-import { Ionicons } from '@expo/vector-icons';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { ScrollView, Text, View } from 'react-native';
 
 import {
   getExams,
@@ -14,8 +13,21 @@ import {
 import { toApiError } from '@/api/client';
 import { getExamProgress, ExamTestProgress } from '@/api/dashboard';
 import { addStudentTarget, getStudentCategories, getStudentTargets, removeStudentTarget } from '@/api/student';
-import { AppText, Button, EmptyView, ErrorBanner, ErrorView, LoadingView, Screen } from '@/components/ui/kit';
-import { radius, space, useColors } from '@/theme';
+import {
+  AppText,
+  Badge,
+  Card,
+  Chip,
+  EmptyView,
+  ErrorBanner,
+  ErrorView,
+  LoadingView,
+  ProgressBar,
+  Screen,
+  ScreenHeader,
+  SectionHeader,
+} from '@/components/ui/kit';
+import { space, useColors } from '@/theme';
 
 export default function ExamDetailScreen() {
   const c = useColors();
@@ -112,41 +124,36 @@ export default function ExamDetailScreen() {
 
   return (
     <Screen>
-      {/* Top Bar */}
-      <View style={styles.headerRow}>
-        <Pressable onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))} hitSlop={10}>
-          <Ionicons name="arrow-back" size={24} color={c.text} />
-        </Pressable>
-        <View style={{ flex: 1 }}>
-          <AppText variant="title" style={{ fontSize: 22 }}>
-            {examName}
-          </AppText>
-          <AppText variant="small" muted>
-            {completedCount}/{totalTests} tests completed
-          </AppText>
+      <ScreenHeader
+        title={examName}
+        subtitle={`${completedCount}/${totalTests} tests completed`}
+        right={
+          <Chip
+            label={isTarget ? 'Target' : 'Add target'}
+            icon={isTarget ? 'star' : 'star-outline'}
+            selected={isTarget}
+            onPress={() => {
+              if (!targetBusy) handleToggleTarget();
+            }}
+          />
+        }
+      />
+      {totalTests > 0 ? (
+        <View style={{ marginBottom: space.lg }}>
+          <ProgressBar value={completedCount / totalTests} height={10} />
         </View>
-        <Button
-          title={isTarget ? '★ Target' : '+ Target'}
-          variant={isTarget ? 'primary' : 'outline'}
-          loading={targetBusy}
-          onPress={handleToggleTarget}
-        />
-      </View>
+      ) : null}
 
       {error ? <ErrorBanner message={error} /> : null}
 
       {/* Exam Stages & Dates */}
       {stages.length > 0 ? (
         <View style={{ marginBottom: space.lg }}>
-          <AppText variant="heading" style={{ marginBottom: space.sm }}>
-            Exam Stages & Pattern
-          </AppText>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+          <SectionHeader title="Exam stages & pattern" />
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -16 }} contentContainerStyle={{ paddingHorizontal: 16, paddingVertical: 4 }}>
             <View style={{ flexDirection: 'row', gap: space.sm }}>
               {stages.map((st) => (
-                <View
-                  key={st.id}
-                  style={[styles.stageCard, { backgroundColor: c.surface, borderColor: c.border }]}>
+                <Card key={st.id} style={{ minWidth: 200, gap: 2, padding: space.md }}>
                   <AppText style={{ fontWeight: '700' }}>{st.name}</AppText>
                   <AppText variant="small" muted>
                     {st.total_marks ? `${st.total_marks} Marks` : 'Marks TBD'} ·{' '}
@@ -162,61 +169,24 @@ export default function ExamDetailScreen() {
                       Exam Date: {st.exam_date}
                     </AppText>
                   ) : null}
-                </View>
+                </Card>
               ))}
             </View>
           </ScrollView>
         </View>
       ) : null}
 
-      {/* Custom Test Tabs Filter (if configured by admin) */}
       {tabs.length > 0 ? (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: space.md }}>
-          <View style={{ flexDirection: 'row', gap: space.sm }}>
-            <Pressable
-              onPress={() => setSelectedTabId('all')}
-              style={[
-                styles.tabChip,
-                {
-                  backgroundColor: selectedTabId === 'all' ? c.primary : c.surface,
-                  borderColor: selectedTabId === 'all' ? c.primary : c.border,
-                },
-              ]}>
-              <AppText
-                variant="small"
-                style={{ color: selectedTabId === 'all' ? c.primaryText : c.text, fontWeight: '600' }}>
-                All ({totalTests})
-              </AppText>
-            </Pressable>
-            {tabs.map((tab) => {
-              const active = selectedTabId === tab.id;
-              return (
-                <Pressable
-                  key={tab.id}
-                  onPress={() => setSelectedTabId(tab.id)}
-                  style={[
-                    styles.tabChip,
-                    {
-                      backgroundColor: active ? c.primary : c.surface,
-                      borderColor: active ? c.primary : c.border,
-                    },
-                  ]}>
-                  <AppText
-                    variant="small"
-                    style={{ color: active ? c.primaryText : c.text, fontWeight: '600' }}>
-                    {tab.name}
-                  </AppText>
-                </Pressable>
-              );
-            })}
-          </View>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -16 }} contentContainerStyle={{ paddingHorizontal: 16, gap: 8, paddingVertical: 6 }}>
+          <Chip label={`All · ${totalTests}`} selected={selectedTabId === 'all'} onPress={() => setSelectedTabId('all')} />
+          {tabs.map((tab) => (
+            <Chip key={tab.id} label={tab.name} selected={selectedTabId === tab.id} onPress={() => setSelectedTabId(tab.id)} />
+          ))}
         </ScrollView>
       ) : null}
 
       {/* Published Tests List */}
-      <AppText variant="heading" style={{ marginBottom: space.sm }}>
-        Mock & Practice Tests ({filteredTests.length})
-      </AppText>
+      <SectionHeader title={`Mock & practice tests · ${filteredTests.length}`} />
 
       {filteredTests.length === 0 ? (
         <EmptyView title="No published tests yet" message="Check back soon for new mock papers." />
@@ -225,29 +195,14 @@ export default function ExamDetailScreen() {
           {filteredTests.map((t: PublishedTest) => {
             const prog = progressByTestId.get(t.id);
             return (
-              <View
+              <Card
                 key={t.id}
-                style={[styles.testCard, { backgroundColor: c.surface, borderColor: c.border }]}>
+                onPress={() => router.push({ pathname: '/tests/[id]', params: { id: t.id } })}
+                style={{ flexDirection: 'row', alignItems: 'center', gap: space.md, padding: space.md }}>
                 <View style={{ flex: 1, gap: 4 }}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm, flexWrap: 'wrap' }}>
                     <AppText style={{ fontWeight: '600' }}>{t.name}</AppText>
-                    <View
-                      style={[
-                        styles.badge,
-                        {
-                          backgroundColor: t.access_tier === 'free' ? c.successBg : c.warningBg,
-                        },
-                      ]}>
-                      <AppText
-                        variant="small"
-                        style={{
-                          fontSize: 11,
-                          fontWeight: '700',
-                          color: t.access_tier === 'free' ? c.successFg : c.warningFg,
-                        }}>
-                        {t.access_tier === 'free' ? 'FREE' : 'PRO'}
-                      </AppText>
-                    </View>
+                    <Badge label={t.access_tier === 'free' ? 'Free' : 'Pro'} tone={t.access_tier === 'free' ? 'success' : 'warning'} />
                   </View>
 
                   <AppText variant="small" muted>
@@ -274,19 +229,10 @@ export default function ExamDetailScreen() {
                   ) : null}
                 </View>
 
-                <Pressable
-                  onPress={() =>
-                    router.push({
-                      pathname: '/tests/[id]',
-                      params: { id: t.id },
-                    })
-                  }
-                  style={[styles.startBtn, { backgroundColor: c.primary }]}>
-                  <AppText variant="small" style={{ color: c.primaryText, fontWeight: '700' }}>
-                    {prog?.in_progress ? 'Resume' : prog?.completed ? 'Retake' : 'Start'}
-                  </AppText>
-                </Pressable>
-              </View>
+                <Text style={{ color: c.primary, fontWeight: '800', fontSize: 13 }}>
+                  {prog?.in_progress ? 'Resume' : prog?.completed ? 'Retake' : 'Start'}
+                </Text>
+              </Card>
             );
           })}
         </View>
@@ -294,43 +240,3 @@ export default function ExamDetailScreen() {
     </Screen>
   );
 }
-
-const styles = StyleSheet.create({
-  headerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space.md,
-    marginBottom: space.lg,
-  },
-  stageCard: {
-    padding: space.md,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    minWidth: 190,
-    gap: 2,
-  },
-  tabChip: {
-    paddingHorizontal: space.md,
-    paddingVertical: space.sm,
-    borderRadius: radius.md,
-    borderWidth: 1,
-  },
-  testCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: space.md,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    gap: space.md,
-  },
-  badge: {
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 6,
-  },
-  startBtn: {
-    paddingHorizontal: space.md,
-    paddingVertical: space.sm,
-    borderRadius: radius.sm,
-  },
-});

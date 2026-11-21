@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { Alert, Linking, Pressable, StyleSheet, View } from 'react-native';
+import { Alert, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { toApiError } from '@/api/client';
 import {
@@ -11,8 +11,21 @@ import {
   getCourseDetail,
   getEnrolledCourses,
 } from '@/api/learning';
-import { AppText, Button, EmptyView, ErrorBanner, ErrorView, LoadingView, Screen } from '@/components/ui/kit';
-import { radius, space, useColors } from '@/theme';
+import {
+  AppText,
+  Badge,
+  Button,
+  Card,
+  EmptyView,
+  ErrorBanner,
+  ErrorView,
+  IconTile,
+  LoadingView,
+  Screen,
+  ScreenHeader,
+  SectionHeader,
+} from '@/components/ui/kit';
+import { space, useColors } from '@/theme';
 
 export default function CourseDetailScreen() {
   const c = useColors();
@@ -74,43 +87,29 @@ export default function CourseDetailScreen() {
 
   return (
     <Screen>
-      <View style={styles.headerRow}>
-        <Pressable onPress={() => (router.canGoBack() ? router.back() : router.replace('/(tabs)/learn'))} hitSlop={10}>
-          <Ionicons name="arrow-back" size={24} color={c.text} />
-        </Pressable>
-        <View style={{ flex: 1 }}>
-          <AppText variant="title" style={{ fontSize: 21 }}>
-            {course.title}
-          </AppText>
-          <AppText variant="small" muted>
-            {[
-              course.category,
-              course.instructorFullName || course.instructorName,
-              course.durationHours ? `${course.durationHours} hrs` : null,
-            ]
-              .filter(Boolean)
-              .join(' · ')}
-          </AppText>
-        </View>
-      </View>
+      <ScreenHeader
+        title={course.title}
+        subtitle={[course.category, course.instructorFullName || course.instructorName, course.durationHours ? `${course.durationHours} hrs` : null].filter(Boolean).join(' · ')}
+        onBack={() => (router.canGoBack() ? router.back() : router.replace('/(tabs)/learn'))}
+      />
 
       {error ? <ErrorBanner message={error} /> : null}
 
       {course.description ? (
-        <View style={[styles.card, { backgroundColor: c.surface, borderColor: c.border }]}>
+        <Card style={{ marginBottom: space.md }}>
           <AppText variant="small">{course.description}</AppText>
-        </View>
+        </Card>
       ) : null}
 
       {/* Enrollment CTA */}
       <View style={{ marginBottom: space.lg }}>
         {isEnrolled ? (
-          <View style={[styles.enrolledBanner, { backgroundColor: c.successBg, borderColor: c.success }]}>
-            <Ionicons name="checkmark-circle" size={20} color={c.successFg} />
-            <AppText variant="small" style={{ color: c.successFg, fontWeight: '700' }}>
-              You are enrolled in this course
+          <Card style={{ backgroundColor: c.successBg, flexDirection: 'row', alignItems: 'center', gap: space.sm, padding: space.md }}>
+            <Ionicons name="checkmark-circle" size={22} color={c.successFg} />
+            <AppText variant="small" style={{ color: c.successFg, fontWeight: '800' }}>
+              You’re enrolled in this course
             </AppText>
-          </View>
+          </Card>
         ) : course.isFree ? (
           <Button title="Enroll for Free" loading={enrolling} onPress={handleEnroll} />
         ) : (
@@ -123,19 +122,15 @@ export default function CourseDetailScreen() {
       </View>
 
       {/* Subjects & Chapters Tree */}
-      <AppText variant="heading" style={{ marginBottom: space.sm }}>
-        Course Curriculum ({course.subjects.length} subjects)
-      </AppText>
+      <SectionHeader title={`Curriculum · ${course.subjects.length} subjects`} />
 
       {course.subjects.length === 0 ? (
         <EmptyView title="Curriculum coming soon" message="Chapters are being uploaded by the instructor." />
       ) : (
         <View style={{ gap: space.md }}>
           {course.subjects.map((subj) => (
-            <View
-              key={subj.id}
-              style={[styles.card, { backgroundColor: c.surface, borderColor: c.border }]}>
-              <AppText style={{ fontWeight: '700', marginBottom: space.xs }}>{subj.title}</AppText>
+            <Card key={subj.id} style={{ paddingVertical: space.md }}>
+              <Text style={{ color: c.text, fontWeight: '800', fontSize: 16, marginBottom: space.xs }}>{subj.title}</Text>
               {subj.chapters.length === 0 ? (
                 <AppText variant="small" muted>
                   No chapters yet
@@ -147,13 +142,9 @@ export default function CourseDetailScreen() {
                     onPress={() => handleOpenChapter(ch)}
                     style={[
                       styles.chapterRow,
-                      idx > 0 ? { borderTopWidth: 1, borderTopColor: c.border } : null,
+                      idx > 0 ? { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.border } : null,
                     ]}>
-                    <Ionicons
-                      name={ch.videoUrl ? 'play-circle' : 'lock-closed-outline'}
-                      size={20}
-                      color={ch.videoUrl ? c.primary : c.textMuted}
-                    />
+                    <IconTile icon={ch.videoUrl ? 'play' : 'lock-closed'} color={ch.videoUrl ? c.primary : c.textMuted} bg={ch.videoUrl ? c.primarySoft : c.skeleton} size={34} />
                     <View style={{ flex: 1 }}>
                       <AppText variant="small" style={{ fontWeight: '600' }}>
                         {ch.title}
@@ -164,10 +155,11 @@ export default function CourseDetailScreen() {
                         </AppText>
                       ) : null}
                     </View>
+                    {ch.isFreePreview ? <Badge label="Preview" tone="success" /> : null}
                   </Pressable>
                 ))
               )}
-            </View>
+            </Card>
           ))}
         </View>
       )}
@@ -176,26 +168,6 @@ export default function CourseDetailScreen() {
 }
 
 const styles = StyleSheet.create({
-  headerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space.md,
-    marginBottom: space.md,
-  },
-  card: {
-    padding: space.md,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    marginBottom: space.sm,
-  },
-  enrolledBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space.sm,
-    padding: space.md,
-    borderRadius: radius.md,
-    borderWidth: 1,
-  },
   chapterRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -203,4 +175,3 @@ const styles = StyleSheet.create({
     paddingVertical: space.sm,
   },
 });
-

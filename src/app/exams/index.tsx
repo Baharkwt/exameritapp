@@ -2,13 +2,14 @@ import { Ionicons } from '@expo/vector-icons';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { CatalogExam, getCategories, getCategoryExamGroups, getExams } from '@/api/catalog';
 import { toApiError } from '@/api/client';
 import { addStudentTarget, getStudentCategories, getStudentTargets, removeStudentTarget } from '@/api/student';
-import { AppText, EmptyView, ErrorBanner, ErrorView, LoadingView, Screen } from '@/components/ui/kit';
-import { radius, space, useColors } from '@/theme';
+import { AppText, Card, Chip, EmptyView, ErrorBanner, ErrorView, LoadingView, Screen, ScreenHeader } from '@/components/ui/kit';
+import { haptic } from '@/lib/haptics';
+import { elevation, radius, space, useColors } from '@/theme';
 
 export default function AllExamsScreen() {
   const c = useColors();
@@ -103,25 +104,12 @@ export default function AllExamsScreen() {
 
   return (
     <Screen>
-      {/* Header */}
-      <View style={styles.headerRow}>
-        {router.canGoBack() ? (
-          <Pressable onPress={() => router.back()} hitSlop={10}>
-            <Ionicons name="arrow-back" size={24} color={c.text} />
-          </Pressable>
-        ) : null}
-        <View style={{ flex: 1 }}>
-          <AppText variant="title">All Exams</AppText>
-          <AppText muted variant="small">
-            Browse exams by category or star up to 3 target exams
-          </AppText>
-        </View>
-      </View>
+      <ScreenHeader title="All exams" subtitle="Star up to 3 target exams" />
 
       {error ? <ErrorBanner message={error} /> : null}
 
       {/* Search bar */}
-      <View style={[styles.searchBox, { backgroundColor: c.surface, borderColor: c.border }]}>
+      <View style={[styles.searchBox, { backgroundColor: c.surface }, elevation(c, 1)]}>
         <Ionicons name="search-outline" size={18} color={c.textMuted} />
         <TextInput
           placeholder="Search SBI PO, SSC CGL, IBPS..."
@@ -137,31 +125,19 @@ export default function AllExamsScreen() {
         ) : null}
       </View>
 
-      {/* Category tabs */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginVertical: space.md }}>
-        <View style={{ flexDirection: 'row', gap: space.sm }}>
-          {categories.map((cat) => {
-            const active = activeCategory === cat.id;
-            return (
-              <Pressable
-                key={cat.id}
-                onPress={() => setSelectedCategory(cat.id)}
-                style={[
-                  styles.catChip,
-                  {
-                    backgroundColor: active ? c.primary : c.surface,
-                    borderColor: active ? c.primary : c.border,
-                  },
-                ]}>
-                <AppText
-                  variant="small"
-                  style={{ color: active ? c.primaryText : c.text, fontWeight: '600' }}>
-                  {cat.name} ({cat.exam_count})
-                </AppText>
-              </Pressable>
-            );
-          })}
-        </View>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={{ marginHorizontal: -16, marginVertical: space.sm }}
+        contentContainerStyle={{ paddingHorizontal: 16, gap: 8, paddingVertical: 6 }}>
+        {categories.map((cat) => (
+          <Chip
+            key={cat.id}
+            label={`${cat.name} · ${cat.exam_count}`}
+            selected={activeCategory === cat.id}
+            onPress={() => setSelectedCategory(cat.id)}
+          />
+        ))}
       </ScrollView>
 
       {/* Exam sections */}
@@ -175,11 +151,11 @@ export default function AllExamsScreen() {
         <View style={{ gap: space.lg }}>
           {groupedSections.map((section) => (
             <View key={section.id} style={{ gap: space.sm }}>
-              <AppText variant="heading">{section.title}</AppText>
+              <Text style={{ color: c.text, fontSize: 17, fontWeight: '800', letterSpacing: -0.3 }}>{section.title}</Text>
               {section.exams.map((exam) => {
                 const isTarget = targetIds.has(exam.id);
                 return (
-                  <Pressable
+                  <Card
                     key={exam.id}
                     onPress={() =>
                       router.push({
@@ -187,8 +163,8 @@ export default function AllExamsScreen() {
                         params: { id: exam.id, name: exam.name, category: activeCategory },
                       })
                     }
-                    style={[styles.examCard, { backgroundColor: c.surface, borderColor: c.border }]}>
-                    <View style={[styles.avatar, { backgroundColor: c.bg }]}>
+                    style={{ flexDirection: 'row', alignItems: 'center', gap: space.md, padding: space.md }}>
+                    <View style={[styles.avatar, { backgroundColor: c.primarySoft }]}>
                       <AppText style={{ fontWeight: '700', color: c.primary }}>
                         {exam.name.slice(0, 2).toUpperCase()}
                       </AppText>
@@ -204,6 +180,7 @@ export default function AllExamsScreen() {
                     <Pressable
                       onPress={(e) => {
                         e.stopPropagation();
+                        haptic.light();
                         toggleTarget(exam);
                       }}
                       hitSlop={10}
@@ -215,7 +192,7 @@ export default function AllExamsScreen() {
                       />
                     </Pressable>
                     <Ionicons name="chevron-forward" size={18} color={c.textMuted} />
-                  </Pressable>
+                  </Card>
                 );
               })}
             </View>
@@ -236,10 +213,9 @@ const styles = StyleSheet.create({
   searchBox: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderWidth: 1,
-    borderRadius: radius.md,
-    paddingHorizontal: space.md,
-    minHeight: 46,
+    borderRadius: radius.pill,
+    paddingHorizontal: space.lg,
+    height: 48,
     gap: space.sm,
   },
   searchInput: {
@@ -264,7 +240,7 @@ const styles = StyleSheet.create({
   avatar: {
     width: 42,
     height: 42,
-    borderRadius: radius.sm,
+    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
   },

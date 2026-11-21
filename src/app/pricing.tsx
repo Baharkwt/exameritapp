@@ -2,11 +2,11 @@ import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Text, View } from 'react-native';
 
 import { getPlans, PlanItem } from '@/api/payments';
-import { AppText, Button, EmptyView, ErrorView, LoadingView, Screen } from '@/components/ui/kit';
-import { radius, space, useColors } from '@/theme';
+import { AppText, Button, Card, EmptyView, ErrorView, LoadingView, Screen, ScreenHeader, Segmented } from '@/components/ui/kit';
+import { space, useColors } from '@/theme';
 
 function extractFeatures(raw: PlanItem['features']): string[] {
   if (Array.isArray(raw)) return raw.map(String);
@@ -33,41 +33,15 @@ export default function PricingScreen() {
 
   return (
     <Screen>
-      <View style={styles.headerRow}>
-        <Pressable onPress={() => (router.canGoBack() ? router.back() : router.replace('/subscription'))} hitSlop={10}>
-          <Ionicons name="arrow-back" size={24} color={c.text} />
-        </Pressable>
-        <View style={{ flex: 1 }}>
-          <AppText variant="title" style={{ fontSize: 22 }}>
-            Choose Your Plan
-          </AppText>
-          <AppText variant="small" muted>
-            Unlock unlimited mock tests, live series & analytics
-          </AppText>
-        </View>
-      </View>
-
-      {/* Billing Cycle Toggle */}
-      <View style={[styles.segmented, { backgroundColor: c.surface, borderColor: c.border }]}>
-        <Pressable
-          onPress={() => setCycle('yearly')}
-          style={[styles.segmentBtn, cycle === 'yearly' ? { backgroundColor: c.primary } : null]}>
-          <AppText
-            variant="small"
-            style={{ color: cycle === 'yearly' ? c.primaryText : c.text, fontWeight: '700' }}>
-            Yearly (Save up to 50%)
-          </AppText>
-        </Pressable>
-        <Pressable
-          onPress={() => setCycle('monthly')}
-          style={[styles.segmentBtn, cycle === 'monthly' ? { backgroundColor: c.primary } : null]}>
-          <AppText
-            variant="small"
-            style={{ color: cycle === 'monthly' ? c.primaryText : c.text, fontWeight: '700' }}>
-            Monthly
-          </AppText>
-        </Pressable>
-      </View>
+      <ScreenHeader title="Choose your plan" subtitle="Unlimited mocks, live series and analytics" />
+      <Segmented
+        value={cycle}
+        onChange={setCycle}
+        options={[
+          { key: 'yearly', label: 'Yearly · save up to 50%' },
+          { key: 'monthly', label: 'Monthly' },
+        ]}
+      />
 
       {plans.length === 0 ? (
         <EmptyView title="No plans available" message="Pricing plans are being updated." />
@@ -78,9 +52,7 @@ export default function PricingScreen() {
             const features = extractFeatures(p.features);
 
             return (
-              <View
-                key={p.id}
-                style={[styles.planCard, { backgroundColor: c.surface, borderColor: c.border }]}>
+              <Card key={p.id} style={{ padding: space.lg }}>
                 <AppText variant="heading">{p.display_name}</AppText>
                 {p.description ? (
                   <AppText variant="small" muted style={{ marginTop: 2 }}>
@@ -89,9 +61,7 @@ export default function PricingScreen() {
                 ) : null}
 
                 <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 4, marginVertical: space.md }}>
-                  <AppText variant="title" style={{ color: c.primary }}>
-                    ₹{price}
-                  </AppText>
+                  <Text style={{ color: c.primary, fontSize: 34, fontWeight: '800', letterSpacing: -1 }}>₹{price}</Text>
                   <AppText variant="small" muted>
                     / {cycle === 'yearly' ? 'year' : 'month'}
                   </AppText>
@@ -124,7 +94,7 @@ export default function PricingScreen() {
                     })
                   }
                 />
-              </View>
+              </Card>
             );
           })}
         </View>
@@ -132,30 +102,3 @@ export default function PricingScreen() {
     </Screen>
   );
 }
-
-const styles = StyleSheet.create({
-  headerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space.md,
-    marginBottom: space.md,
-  },
-  segmented: {
-    flexDirection: 'row',
-    borderRadius: radius.md,
-    borderWidth: 1,
-    padding: 4,
-  },
-  segmentBtn: {
-    flex: 1,
-    paddingVertical: space.sm,
-    borderRadius: radius.sm,
-    alignItems: 'center',
-  },
-  planCard: {
-    padding: space.lg,
-    borderRadius: radius.md,
-    borderWidth: 1,
-  },
-});
-

@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { ScrollView, View } from 'react-native';
 
 import { getExamPublishedTests, PublishedTest } from '@/api/catalog';
 import { toApiError } from '@/api/client';
@@ -13,8 +13,20 @@ import {
 } from '@/api/live';
 import { getStudentCategories, getStudentTargets } from '@/api/student';
 import { getFreeQuizzes } from '@/api/tests';
-import { AppText, Button, EmptyView, ErrorBanner, LoadingView, Screen } from '@/components/ui/kit';
-import { radius, space, useColors } from '@/theme';
+import {
+  AppText,
+  Badge,
+  Button,
+  Card,
+  Chip,
+  EmptyView,
+  ErrorBanner,
+  LoadingView,
+  Screen,
+  ScreenHeader,
+  Segmented,
+} from '@/components/ui/kit';
+import { space, useColors } from '@/theme';
 
 export default function LiveTestsScreen() {
   const c = useColors();
@@ -127,55 +139,23 @@ export default function LiveTestsScreen() {
 
   return (
     <Screen>
-      <View style={styles.headerRow}>
-        <Pressable onPress={() => (router.canGoBack() ? router.back() : router.replace('/(tabs)/tests'))} hitSlop={10}>
-          <Ionicons name="arrow-back" size={24} color={c.text} />
-        </Pressable>
-        <View style={{ flex: 1 }}>
-          <AppText variant="title" style={{ fontSize: 22 }}>
-            Live Tests Arena
-          </AppText>
-          <AppText variant="small" muted>
-            All-India live mock tests & real-time rankings
-          </AppText>
-        </View>
-        <Pressable
-          onPress={() => router.push('/leaderboard')}
-          style={[styles.rankBtn, { backgroundColor: c.surface, borderColor: c.border }]}>
-          <Ionicons name="trophy-outline" size={16} color={c.primary} />
-          <AppText variant="small" style={{ color: c.primary, fontWeight: '700' }}>
-            Ranks
-          </AppText>
-        </Pressable>
-      </View>
+      <ScreenHeader
+        title="Live arena"
+        subtitle="All-India live mocks and rankings"
+        right={<Chip label="Ranks" icon="trophy" onPress={() => router.push('/leaderboard')} />}
+      />
 
       {error ? <ErrorBanner message={error} /> : null}
 
-      {/* Tabs */}
-      <View style={[styles.segmented, { backgroundColor: c.surface, borderColor: c.border }]}>
-        {(
-          [
-            { key: 'upcoming', label: `Live & Upcoming (${liveTests.length})` },
-            { key: 'registered', label: `Registered (${registeredList.length})` },
-            { key: 'completed', label: `Completed (${completedList.length})` },
-          ] as const
-        ).map((item) => (
-          <Pressable
-            key={item.key}
-            onPress={() => setTab(item.key)}
-            style={[styles.segmentBtn, tab === item.key ? { backgroundColor: c.primary } : null]}>
-            <AppText
-              variant="small"
-              style={{
-                color: tab === item.key ? c.primaryText : c.text,
-                fontWeight: '700',
-                fontSize: 12,
-              }}>
-              {item.label}
-            </AppText>
-          </Pressable>
-        ))}
-      </View>
+      <Segmented
+        value={tab}
+        onChange={setTab}
+        options={[
+          { key: 'upcoming', label: `Live · ${liveTests.length}` },
+          { key: 'registered', label: `Registered · ${registeredList.length}` },
+          { key: 'completed', label: `Done · ${completedList.length}` },
+        ]}
+      />
 
       {tab === 'upcoming' ? (
         liveTests.length === 0 ? (
@@ -188,16 +168,9 @@ export default function LiveTestsScreen() {
             {liveTests.map((t) => {
               const reg = regMap.get(t.id);
               return (
-                <View
-                  key={t.id}
-                  style={[styles.card, { backgroundColor: c.surface, borderColor: c.border }]}>
+                <Card key={t.id} style={{ gap: 4 }}>
                   <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <View style={[styles.liveTag, { backgroundColor: c.liveBg }]}>
-                      <View style={[styles.liveDot, { backgroundColor: c.live }]} />
-                      <AppText variant="small" style={{ color: c.danger, fontWeight: '700', fontSize: 11 }}>
-                        LIVE TEST
-                      </AppText>
-                    </View>
+                    <Badge label="Live test" tone="danger" />
                     {reg ? (
                       <AppText variant="small" style={{ color: c.success, fontWeight: '700' }}>
                         ✓ {reg.status.toUpperCase()}
@@ -232,7 +205,7 @@ export default function LiveTestsScreen() {
                       onPress={() => handleEnterLiveTest(t.id)}
                     />
                   </View>
-                </View>
+                </Card>
               );
             })}
           </View>
@@ -248,9 +221,7 @@ export default function LiveTestsScreen() {
             {registeredList.map((reg) => {
               const matched = liveTests.find((t) => t.id === reg.test_id);
               return (
-                <View
-                  key={reg.test_id}
-                  style={[styles.card, { backgroundColor: c.surface, borderColor: c.border }]}>
+                <Card key={reg.test_id} style={{ gap: 4 }}>
                   <AppText style={{ fontWeight: '700' }}>
                     {matched?.name ?? `Live Test (${reg.test_id})`}
                   </AppText>
@@ -266,7 +237,7 @@ export default function LiveTestsScreen() {
                       }
                     />
                   </View>
-                </View>
+                </Card>
               );
             })}
           </View>
@@ -281,9 +252,7 @@ export default function LiveTestsScreen() {
           {completedList.map((reg) => {
             const matched = liveTests.find((t) => t.id === reg.test_id);
             return (
-              <View
-                key={reg.test_id}
-                style={[styles.card, { backgroundColor: c.surface, borderColor: c.border }]}>
+              <Card key={reg.test_id} style={{ gap: 4 }}>
                 <AppText style={{ fontWeight: '700' }}>
                   {matched?.name ?? `Live Test (${reg.test_id})`}
                 </AppText>
@@ -305,7 +274,7 @@ export default function LiveTestsScreen() {
                     }
                   />
                 </View>
-              </View>
+              </Card>
             );
           })}
         </View>
@@ -313,7 +282,7 @@ export default function LiveTestsScreen() {
 
       {/* Info Note on Live Classes */}
       <ScrollView horizontal={false} style={{ marginTop: space.xl }}>
-        <View style={[styles.infoBanner, { backgroundColor: c.surface, borderColor: c.border }]}>
+        <Card tone="soft" style={{ flexDirection: 'row', alignItems: 'flex-start', gap: space.sm }}>
           <Ionicons name="information-circle-outline" size={20} color={c.primary} />
           <View style={{ flex: 1 }}>
             <AppText variant="small" style={{ fontWeight: '700' }}>
@@ -323,66 +292,8 @@ export default function LiveTestsScreen() {
               Live test windows are enforced by the server (`starts_at` and `result_release_at`). Status updates automatically every 20 seconds.
             </AppText>
           </View>
-        </View>
+        </Card>
       </ScrollView>
     </Screen>
   );
 }
-
-const styles = StyleSheet.create({
-  headerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space.md,
-    marginBottom: space.md,
-  },
-  rankBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: space.md,
-    paddingVertical: space.sm,
-    borderRadius: radius.md,
-    borderWidth: 1,
-  },
-  segmented: {
-    flexDirection: 'row',
-    borderRadius: radius.md,
-    borderWidth: 1,
-    padding: 4,
-  },
-  segmentBtn: {
-    flex: 1,
-    paddingVertical: space.sm,
-    borderRadius: radius.sm,
-    alignItems: 'center',
-  },
-  card: {
-    padding: space.md,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    gap: 4,
-  },
-  liveTag: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-  },
-  liveDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 4,
-  },
-  infoBanner: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: space.sm,
-    padding: space.md,
-    borderRadius: radius.md,
-    borderWidth: 1,
-  },
-});
-

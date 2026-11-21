@@ -2,10 +2,23 @@ import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { AttemptResultAnswer, getAttemptResult, getTestMetadata } from '@/api/tests';
-import { AppText, Button, EmptyView, ErrorView, LoadingView, Screen } from '@/components/ui/kit';
+import {
+  AppText,
+  Button,
+  Card,
+  EmptyView,
+  ErrorView,
+  LoadingView,
+  ProgressBar,
+  ProgressRing,
+  Screen,
+  Segmented,
+  SectionHeader,
+  StatTile,
+} from '@/components/ui/kit';
 import { radius, space, useColors } from '@/theme';
 
 export default function TestResultAndSolutionsScreen() {
@@ -139,107 +152,68 @@ export default function TestResultAndSolutionsScreen() {
         </View>
       </View>
 
-      {/* Segmented Switcher */}
-      <View style={[styles.segmented, { backgroundColor: c.surface, borderColor: c.border }]}>
-        <Pressable
-          onPress={() => setTab('summary')}
-          accessibilityRole="tab"
-          accessibilityState={{ selected: tab === 'summary' }}
-          style={[styles.segmentBtn, tab === 'summary' ? { backgroundColor: c.primary } : null]}>
-          <AppText
-            variant="small"
-            style={{ color: tab === 'summary' ? c.primaryText : c.text, fontWeight: '700' }}>
-            Performance Analysis
-          </AppText>
-        </Pressable>
-        <Pressable
-          onPress={() => setTab('solutions')}
-          accessibilityRole="tab"
-          accessibilityState={{ selected: tab === 'solutions' }}
-          style={[styles.segmentBtn, tab === 'solutions' ? { backgroundColor: c.primary } : null]}>
-          <AppText
-            variant="small"
-            style={{ color: tab === 'solutions' ? c.primaryText : c.text, fontWeight: '700' }}>
-            Solutions ({answers.length})
-          </AppText>
-        </Pressable>
-      </View>
+      <Segmented
+        value={tab}
+        onChange={setTab}
+        options={[
+          { key: 'summary', label: 'Analysis' },
+          { key: 'solutions', label: `Solutions · ${answers.length}` },
+        ]}
+      />
 
       {tab === 'summary' ? (
         <View style={{ gap: space.md, marginTop: space.md }}>
-          {/* Hero Score Card */}
-          <View style={[styles.scoreHero, { backgroundColor: c.surface, borderColor: c.border }]}>
-            <AppText variant="small" muted>
-              TOTAL SCORE
-            </AppText>
-            <AppText variant="title" style={{ fontSize: 34, color: c.primary }}>
-              {res.score ?? 0}{' '}
-              <AppText variant="heading" muted>
-                / {res.maxScore ?? metaQ.data?.max_score ?? 0}
-              </AppText>
-            </AppText>
+          <Card tone="hero" style={{ gap: space.md }}>
+            <Text style={{ color: c.heroMuted, fontSize: 12, fontWeight: '700', letterSpacing: 0.6 }}>TOTAL SCORE</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+              <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 6 }}>
+                <Text style={{ color: c.heroText, fontSize: 48, fontWeight: '800', letterSpacing: -1 }}>{res.score ?? 0}</Text>
+                <Text style={{ color: c.heroMuted, fontSize: 20, fontWeight: '700', marginBottom: 8 }}>
+                  / {res.maxScore ?? metaQ.data?.max_score ?? 0}
+                </Text>
+              </View>
+              <ProgressRing value={stats.accuracy / 100} size={84} stroke={9} color={c.heroText} track={c.heroSoft}>
+                <Text style={{ color: c.heroText, fontWeight: '800', fontSize: 18 }}>{stats.accuracy}%</Text>
+              </ProgressRing>
+            </View>
             {metaQ.data?.official_cutoff ? (
-              <AppText variant="small" muted>
-                Official Cutoff: {metaQ.data.official_cutoff} marks
-              </AppText>
+              <Text style={{ color: c.heroMuted, fontSize: 12.5, fontWeight: '600' }}>
+                Official cutoff: {metaQ.data.official_cutoff} marks
+              </Text>
             ) : null}
+          </Card>
+
+          <View style={{ flexDirection: 'row', gap: space.sm }}>
+            <StatTile label="Correct" value={stats.correct} icon="checkmark-circle" color={c.success} bg={c.successBg} />
+            <StatTile label="Wrong" value={stats.wrong} icon="close-circle" color={c.danger} bg={c.dangerBg} />
+          </View>
+          <View style={{ flexDirection: 'row', gap: space.sm }}>
+            <StatTile label="Skipped" value={stats.skipped} icon="remove-circle" color={c.textMuted} bg={c.skeleton} />
+            <StatTile label="Accuracy" value={`${stats.accuracy}%`} icon="locate" color={c.primary} bg={c.primarySoft} />
           </View>
 
-          {/* Breakdown Grid */}
-          <View style={styles.gridRow}>
-            <View style={[styles.statBox, { backgroundColor: c.surface, borderColor: c.border }]}>
-              <AppText variant="small" style={{ color: c.success, fontWeight: '700' }}>
-                ✓ Correct
-              </AppText>
-              <AppText variant="heading">{stats.correct}</AppText>
-            </View>
-            <View style={[styles.statBox, { backgroundColor: c.surface, borderColor: c.border }]}>
-              <AppText variant="small" style={{ color: c.danger, fontWeight: '700' }}>
-                ✕ Wrong
-              </AppText>
-              <AppText variant="heading">{stats.wrong}</AppText>
-            </View>
-            <View style={[styles.statBox, { backgroundColor: c.surface, borderColor: c.border }]}>
-              <AppText variant="small" muted>
-                ○ Skipped
-              </AppText>
-              <AppText variant="heading">{stats.skipped}</AppText>
-            </View>
-            <View style={[styles.statBox, { backgroundColor: c.surface, borderColor: c.border }]}>
-              <AppText variant="small" style={{ color: c.primary, fontWeight: '700' }}>
-                🎯 Accuracy
-              </AppText>
-              <AppText variant="heading">{stats.accuracy}%</AppText>
-            </View>
-          </View>
-
-          {/* Topic-wise Accuracy */}
-          <View style={[styles.card, { backgroundColor: c.surface, borderColor: c.border }]}>
-            <AppText variant="heading" style={{ marginBottom: space.sm }}>
-              Topic Breakdown
-            </AppText>
-            <View style={{ gap: space.sm }}>
-              {stats.topics.map((t) => (
-                <View key={t.name} style={styles.topicRow}>
-                  <View style={{ flex: 1 }}>
-                    <AppText style={{ fontWeight: '600' }}>{t.name}</AppText>
-                    <AppText variant="small" muted>
-                      {t.correct}/{t.total} correct
+          <SectionHeader title="Topic breakdown" />
+          <Card style={{ gap: space.lg }}>
+            {stats.topics.map((t) => {
+              const tone = t.pct >= 70 ? c.success : t.pct >= 40 ? c.warning : c.danger;
+              return (
+                <View key={t.name} style={{ gap: 6 }}>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                    <AppText style={{ fontWeight: '700', flex: 1 }} numberOfLines={1}>
+                      {t.name}
                     </AppText>
+                    <Text style={{ color: tone, fontWeight: '800' }}>{t.pct}%</Text>
                   </View>
-                  <AppText
-                    style={{
-                      fontWeight: '700',
-                      color: t.pct >= 70 ? c.success : t.pct >= 40 ? c.warning : c.danger,
-                    }}>
-                    {t.pct}%
+                  <ProgressBar value={t.pct / 100} color={tone} />
+                  <AppText variant="small" muted>
+                    {t.correct}/{t.total} correct
                   </AppText>
                 </View>
-              ))}
-            </View>
-          </View>
+              );
+            })}
+          </Card>
 
-          <Button title="Review Step-by-Step Solutions" onPress={() => setTab('solutions')} />
+          <Button title="Review solutions" onPress={() => setTab('solutions')} />
         </View>
       ) : (
         <View style={{ marginTop: space.md, gap: space.md }}>

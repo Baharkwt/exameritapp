@@ -1,6 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { router } from 'expo-router';
 import { useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
@@ -11,8 +10,8 @@ import {
   getRevisionQueue,
   updateMistake,
 } from '@/api/analytics';
-import { AppText, Button, EmptyView, ErrorView, LoadingView, Screen } from '@/components/ui/kit';
-import { radius, space, useColors } from '@/theme';
+import { AppText, Badge, Button, Card, Chip, EmptyView, ErrorView, LoadingView, Screen, ScreenHeader, Segmented } from '@/components/ui/kit';
+import { space, useColors } from '@/theme';
 
 type StatusFilter = 'ALL' | 'UNRESOLVED' | 'NEEDS_PRACTICE' | 'RESOLVED';
 
@@ -71,89 +70,26 @@ export default function MistakesScreen() {
 
   return (
     <Screen>
-      {/* Top Bar */}
-      <View style={styles.topBar}>
-        <Pressable onPress={() => router.back()} style={styles.backBtn}>
-          <Ionicons name="arrow-back" size={22} color={c.text} />
-        </Pressable>
-        <View style={{ flex: 1 }}>
-          <AppText variant="heading">Mistake Notebook & Revision</AppText>
-          <AppText variant="small" muted>
-            Turn wrong answers into lasting exam memory
-          </AppText>
-        </View>
-      </View>
-
-      {/* Primary Segmented Control */}
-      <View style={[styles.tabRow, { backgroundColor: c.surface, borderColor: c.border }]}>
-        <Pressable
-          onPress={() => setTab('mistakes')}
-          accessibilityRole="tab"
-          accessibilityState={{ selected: tab === 'mistakes' }}
-          style={[
-            styles.tabBtn,
-            tab === 'mistakes' && { backgroundColor: c.primary },
-          ]}>
-          <AppText
-            variant="small"
-            style={{
-              fontWeight: '700',
-              color: tab === 'mistakes' ? c.primaryText : c.text,
-            }}>
-            Mistake Notebook ({mistakes.length})
-          </AppText>
-        </Pressable>
-        <Pressable
-          onPress={() => setTab('revision')}
-          accessibilityRole="tab"
-          accessibilityState={{ selected: tab === 'revision' }}
-          style={[
-            styles.tabBtn,
-            tab === 'revision' && { backgroundColor: c.primary },
-          ]}>
-          <AppText
-            variant="small"
-            style={{
-              fontWeight: '700',
-              color: tab === 'revision' ? c.primaryText : c.text,
-            }}>
-            Revision Queue ({revisions.length})
-          </AppText>
-        </Pressable>
-      </View>
+      <ScreenHeader title="Mistake notebook" subtitle="Turn wrong answers into lasting memory" />
+      <Segmented
+        value={tab}
+        onChange={setTab}
+        options={[
+          { key: 'mistakes', label: `Mistakes · ${mistakes.length}` },
+          { key: 'revision', label: `Revision · ${revisions.length}` },
+        ]}
+      />
 
       {tab === 'mistakes' ? (
         <>
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
-            style={{ marginBottom: space.md }}>
-            <View style={{ flexDirection: 'row', gap: space.xs }}>
-              {(['ALL', 'UNRESOLVED', 'NEEDS_PRACTICE', 'RESOLVED'] as const).map((st) => {
-                const active = statusFilter === st;
-                return (
-                  <Pressable
-                    key={st}
-                    onPress={() => setStatusFilter(st)}
-                    style={[
-                      styles.filterChip,
-                      {
-                        backgroundColor: active ? c.primary : c.surface,
-                        borderColor: active ? c.primary : c.border,
-                      },
-                    ]}>
-                    <AppText
-                      variant="small"
-                      style={{
-                        color: active ? c.primaryText : c.text,
-                        fontWeight: '600',
-                      }}>
-                      {st.replace('_', ' ')}
-                    </AppText>
-                  </Pressable>
-                );
-              })}
-            </View>
+            style={{ marginHorizontal: -16 }}
+            contentContainerStyle={{ paddingHorizontal: 16, gap: 8, paddingVertical: 10 }}>
+            {(['ALL', 'UNRESOLVED', 'NEEDS_PRACTICE', 'RESOLVED'] as const).map((st) => (
+              <Chip key={st} label={st.replace('_', ' ')} selected={statusFilter === st} onPress={() => setStatusFilter(st)} />
+            ))}
           </ScrollView>
 
           {mistakesQ.isLoading ? (
@@ -170,46 +106,22 @@ export default function MistakesScreen() {
               {mistakes.map((item) => {
                 const isResolved = item.resolution_status === 'RESOLVED';
                 return (
-                  <View
-                    key={item.id}
-                    style={[styles.card, { backgroundColor: c.surface, borderColor: c.border }]}>
+                  <Card key={item.id} style={{ gap: space.xs }}>
                     <View style={styles.badgeRow}>
-                      <View
-                        style={[
-                          styles.statusBadge,
-                          {
-                            backgroundColor: isResolved ? c.successBg : c.liveBg,
-                          },
-                        ]}>
-                        <AppText
-                          variant="small"
-                          style={{
-                            color: isResolved ? c.successFg : c.dangerFg,
-                            fontWeight: '700',
-                            fontSize: 11,
-                          }}>
-                          {item.resolution_status}
-                        </AppText>
-                      </View>
+                      <Badge label={item.resolution_status} tone={isResolved ? 'success' : 'danger'} />
                       {item.subject_name || item.topic_name ? (
                         <AppText variant="small" muted style={{ flex: 1 }} numberOfLines={1}>
                           {[item.subject_name, item.topic_name].filter(Boolean).join(' · ')}
                         </AppText>
                       ) : null}
                       <Pressable
+                        hitSlop={10}
+                        accessibilityLabel="Delete mistake"
                         onPress={() =>
-                          Alert.alert(
-                            'Remove Mistake',
-                            'Delete this question from your mistake notebook?',
-                            [
-                              { text: 'Cancel', style: 'cancel' },
-                              {
-                                text: 'Delete',
-                                style: 'destructive',
-                                onPress: () => deleteMut.mutate(item.id),
-                              },
-                            ],
-                          )
+                          Alert.alert('Remove Mistake', 'Delete this question from your mistake notebook?', [
+                            { text: 'Cancel', style: 'cancel' },
+                            { text: 'Delete', style: 'destructive', onPress: () => deleteMut.mutate(item.id) },
+                          ])
                         }>
                         <Ionicons name="trash-outline" size={18} color={c.textMuted} />
                       </Pressable>
@@ -245,7 +157,7 @@ export default function MistakesScreen() {
                         />
                       )}
                     </View>
-                  </View>
+                  </Card>
                 );
               })}
             </View>
@@ -263,25 +175,9 @@ export default function MistakesScreen() {
       ) : (
         <View style={{ gap: space.md }}>
           {revisions.map((rev) => (
-            <View
-              key={rev.id}
-              style={[styles.card, { backgroundColor: c.surface, borderColor: c.border }]}>
+            <Card key={rev.id} style={{ gap: space.xs }}>
               <View style={styles.badgeRow}>
-                <View
-                  style={[
-                    styles.statusBadge,
-                    { backgroundColor: rev.overdue ? c.liveBg : c.infoBg },
-                  ]}>
-                  <AppText
-                    variant="small"
-                    style={{
-                      color: rev.overdue ? c.dangerFg : c.infoFg,
-                      fontWeight: '700',
-                      fontSize: 11,
-                    }}>
-                    Stage {rev.interval_stage} · {rev.overdue ? 'OVERDUE' : 'DUE'}
-                  </AppText>
-                </View>
+                <Badge label={`Stage ${rev.interval_stage} · ${rev.overdue ? 'overdue' : 'due'}`} tone={rev.overdue ? 'danger' : 'info'} />
                 {rev.topic_name ? (
                   <AppText variant="small" muted style={{ flex: 1 }} numberOfLines={1}>
                     {rev.topic_name}
@@ -307,7 +203,7 @@ export default function MistakesScreen() {
                 onPress={() => completeRevMut.mutate(rev.id)}
                 loading={completeRevMut.isPending}
               />
-            </View>
+            </Card>
           ))}
         </View>
       )}
@@ -316,48 +212,5 @@ export default function MistakesScreen() {
 }
 
 const styles = StyleSheet.create({
-  topBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space.sm,
-    marginBottom: space.md,
-  },
-  backBtn: {
-    padding: 6,
-  },
-  tabRow: {
-    flexDirection: 'row',
-    borderRadius: radius.md,
-    borderWidth: 1,
-    padding: 4,
-    marginBottom: space.md,
-  },
-  tabBtn: {
-    flex: 1,
-    paddingVertical: space.sm,
-    alignItems: 'center',
-    borderRadius: radius.sm,
-  },
-  filterChip: {
-    paddingHorizontal: space.md,
-    paddingVertical: 6,
-    borderRadius: radius.sm,
-    borderWidth: 1,
-  },
-  card: {
-    padding: space.md,
-    borderRadius: radius.md,
-    borderWidth: 1,
-  },
-  badgeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space.sm,
-  },
-  statusBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-  },
+  badgeRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
 });
-

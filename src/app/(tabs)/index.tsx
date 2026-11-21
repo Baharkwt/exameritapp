@@ -1,31 +1,49 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import { router } from 'expo-router';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
+import { getLearningSummary } from '@/api/analytics';
 import { getExams } from '@/api/catalog';
 import { getPersonalizedExamAlerts, getStreak } from '@/api/dashboard';
 import { getStudentCategories, getStudentTargets } from '@/api/student';
-import { AppText, Button, ErrorView, LoadingView, Screen } from '@/components/ui/kit';
+import { getNotifications } from '@/api/support';
+import {
+  AppText,
+  Badge,
+  Button,
+  Card,
+  ErrorView,
+  IconTile,
+  LoadingView,
+  ProgressRing,
+  Screen,
+  SectionHeader,
+  Skeleton,
+} from '@/components/ui/kit';
+import { ExamSwitcher } from '@/components/ExamSwitcher';
 import { useAuth } from '@/features/auth/auth-provider';
-import { radius, space, useColors } from '@/theme';
+import { useActiveExam } from '@/features/exam/active-exam';
+import { elevation, radius, space, useColors } from '@/theme';
 
-type QuickAction = {
-  label: string;
-  icon: React.ComponentProps<typeof Ionicons>['name'];
-  color: string;
-  bg: string;
-  onPress: () => void;
-};
+type IconName = React.ComponentProps<typeof Ionicons>['name'];
+
+function greeting(): string {
+  const h = new Date().getHours();
+  return h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
+}
 
 export default function Home() {
   const { user } = useAuth();
   const c = useColors();
+  const { exam: activeExam } = useActiveExam();
 
   const myCatsQ = useQuery({ queryKey: ['student-categories'], queryFn: getStudentCategories });
   const myTargetsQ = useQuery({ queryKey: ['student-targets'], queryFn: getStudentTargets });
   const streakQ = useQuery({ queryKey: ['streak'], queryFn: getStreak });
   const alertsQ = useQuery({ queryKey: ['personalized-alerts'], queryFn: getPersonalizedExamAlerts });
+  const summaryQ = useQuery({ queryKey: ['learning-summary'], queryFn: () => getLearningSummary() });
+  const notifQ = useQuery({ queryKey: ['notifications'], queryFn: getNotifications });
 
   const primaryCatId = myCatsQ.data?.categories[0]?.categoryId;
   const recommendedExamsQ = useQuery({
@@ -43,447 +61,364 @@ export default function Home() {
   const targets = myTargetsQ.data ?? [];
   const streak = streakQ.data;
   const alerts = alertsQ.data?.alerts ?? [];
+  const summary = summaryQ.data;
+  const unread = notifQ.data?.unread ?? 0;
   const needsSetup = !myCatsQ.data?.onboardingCompleted || activeCategories.length === 0 || targets.length === 0;
+  const mainTarget = activeExam ?? targets[0];
+  const firstName = user?.name?.split(' ')[0] || 'Student';
 
-  const quickActions: QuickAction[] = [
-    {
-      label: 'Mock Tests',
-      icon: 'document-text',
-      color: c.primary,
-      bg: c.primarySoft,
-      onPress: () => router.push('/(tabs)/tests'),
-    },
-    {
-      label: 'Live Arena',
-      icon: 'radio',
-      color: c.live,
-      bg: c.liveBg,
-      onPress: () => router.push('/live-tests'),
-    },
-    {
-      label: 'All Exams',
-      icon: 'school',
-      color: c.info,
-      bg: c.infoBg,
-      onPress: () => router.push('/exams'),
-    },
-    {
-      label: 'Daily News',
-      icon: 'newspaper',
-      color: c.success,
-      bg: c.successBg,
-      onPress: () => router.push('/current-affairs'),
-    },
-    {
-      label: 'Syllabus',
-      icon: 'map',
-      color: c.marked,
-      bg: c.markedBg,
-      onPress: () => router.push('/syllabus'),
-    },
-    {
-      label: 'Vocab Hub',
-      icon: 'language',
-      color: c.info,
-      bg: c.infoBg,
-      onPress: () => router.push('/vocabulary'),
-    },
-    {
-      label: 'Mistakes',
-      icon: 'journal',
-      color: c.warning,
-      bg: c.warningBg,
-      onPress: () => router.push('/mistakes'),
-    },
-    {
-      label: 'Leaderboard',
-      icon: 'trophy',
-      color: c.star,
-      bg: c.warningBg,
-      onPress: () => router.push('/leaderboard'),
-    },
+  const shortcuts: { label: string; icon: IconName; color: string; bg: string; to: string }[] = [
+    { label: 'Mock Tests', icon: 'document-text', color: c.primary, bg: c.primarySoft, to: '/(tabs)/tests' },
+    { label: 'Live Arena', icon: 'radio', color: c.live, bg: c.liveBg, to: '/live-tests' },
+    { label: 'Syllabus', icon: 'map', color: c.marked, bg: c.markedBg, to: '/syllabus' },
+    { label: 'Daily News', icon: 'newspaper', color: c.success, bg: c.successBg, to: '/current-affairs' },
+    { label: 'Vocab', icon: 'language', color: c.info, bg: c.infoBg, to: '/vocabulary' },
+    { label: 'Mistakes', icon: 'journal', color: c.warning, bg: c.warningBg, to: '/mistakes' },
+    { label: 'Leaderboard', icon: 'trophy', color: c.star, bg: c.warningBg, to: '/leaderboard' },
+    { label: 'All Exams', icon: 'school', color: c.info, bg: c.infoBg, to: '/exams' },
   ];
 
-  const refreshing = myCatsQ.isRefetching || myTargetsQ.isRefetching || streakQ.isRefetching || alertsQ.isRefetching;
+  const refreshing = myCatsQ.isRefetching || myTargetsQ.isRefetching || streakQ.isRefetching;
   const onRefresh = () => {
     myCatsQ.refetch();
     myTargetsQ.refetch();
     streakQ.refetch();
     alertsQ.refetch();
+    summaryQ.refetch();
+    notifQ.refetch();
     recommendedExamsQ.refetch();
   };
 
   return (
     <Screen refreshing={refreshing} onRefresh={onRefresh}>
-      {/* Compact Top Bar */}
-      <View style={styles.topRow}>
+      {/* Header */}
+      <View style={styles.header}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Open profile"
+          onPress={() => router.push('/(tabs)/profile')}
+          style={[styles.avatar, { backgroundColor: c.primarySoft }]}>
+          <Text style={{ color: c.primary, fontWeight: '800', fontSize: 16 }}>
+            {firstName.charAt(0).toUpperCase()}
+          </Text>
+        </Pressable>
         <View style={{ flex: 1 }}>
-          <AppText variant="title">
-            Hi, {user?.name?.split(' ')[0] || 'Student'}
+          <AppText variant="small" muted>
+            {greeting()}
           </AppText>
-          <Pressable
-            onPress={() => router.push('/onboarding')}
-            style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 1 }}>
-            <AppText variant="small" style={{ color: c.primary, fontWeight: '600' }} numberOfLines={1}>
-              {targets[0] ? `Goal: ${targets[0].name}` : 'Tap to set target exam'}
-            </AppText>
-            <Ionicons name="chevron-down" size={12} color={c.primary} />
-          </Pressable>
-        </View>
-
-        <View style={styles.topActions}>
-          <View style={[styles.streakPill, { backgroundColor: c.surface, borderColor: c.border }]}>
-            <AppText variant="small" style={{ fontWeight: '700' }}>
-              🔥 {streak?.currentStreak ?? 0}d
-            </AppText>
-            <AppText variant="small" muted>
-              · ⭐ {streak?.totalPoints ?? 0}
-            </AppText>
-          </View>
-          <Pressable
-            onPress={() => router.push('/notifications')}
-            accessibilityRole="button"
-            accessibilityLabel="Notifications"
-            hitSlop={6}
-            style={[styles.iconBtn, { backgroundColor: c.surface, borderColor: c.border }]}>
-            <Ionicons name="notifications-outline" size={20} color={c.text} />
-          </Pressable>
-          <Pressable
-            onPress={() => router.push('/subscription')}
-            accessibilityRole="button"
-            accessibilityLabel="Upgrade to Pro"
-            hitSlop={6}
-            style={[styles.proPill, { backgroundColor: c.warningBg, borderColor: c.warning }]}>
-            <AppText variant="small" style={{ color: c.warningFg, fontWeight: '800', fontSize: 12 }}>
-              PRO
-            </AppText>
-          </Pressable>
-        </View>
-      </View>
-
-      {/* Active Category Strip */}
-      {activeCategories.length > 0 ? (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: space.md }}>
-          <View style={{ flexDirection: 'row', gap: 6 }}>
-            {activeCategories.map((cat) => (
-              <Pressable
-                key={cat.categoryId}
-                onPress={() =>
-                  router.push({ pathname: '/exams', params: { category: cat.categoryId } })
-                }
-                style={[styles.catBadge, { backgroundColor: c.surface, borderColor: c.border }]}>
-                <AppText variant="small" style={{ fontWeight: '600' }}>
-                  {cat.name}
-                </AppText>
-              </Pressable>
-            ))}
-            <Pressable
-              onPress={() => router.push('/onboarding')}
-              style={[styles.catBadge, { backgroundColor: c.bg, borderColor: c.border }]}>
-              <AppText variant="small" style={{ color: c.primary, fontWeight: '600' }}>
-                + Edit Goals
-              </AppText>
-            </Pressable>
-          </View>
-        </ScrollView>
-      ) : null}
-
-      {/* Compact Onboarding Banner if incomplete */}
-      {needsSetup ? (
-        <View style={[styles.setupCard, { backgroundColor: c.surface, borderColor: c.primary }]}>
-          <View style={{ flex: 1 }}>
-            <AppText style={{ fontWeight: '700' }}>Set your target exam</AppText>
-            <AppText variant="small" muted>
-              Unlock personalized mocks, syllabus & daily alerts.
-            </AppText>
-          </View>
-          <Button title="Setup" onPress={() => router.push('/onboarding')} />
-        </View>
-      ) : null}
-
-      {/* 8-Tile Quick Launch Grid (2x4) */}
-      <View style={[styles.gridCard, { backgroundColor: c.surface, borderColor: c.border }]}>
-        {quickActions.map((item) => (
-          <Pressable
-            key={item.label}
-            onPress={item.onPress}
-            accessibilityRole="button"
-            accessibilityLabel={item.label}
-            style={styles.gridItem}>
-            <View style={[styles.gridIconWrap, { backgroundColor: item.bg }]}>
-              <Ionicons name={item.icon} size={18} color={item.color} />
-            </View>
-            <AppText variant="small" style={styles.gridLabel} numberOfLines={1}>
-              {item.label}
-            </AppText>
-          </Pressable>
-        ))}
-      </View>
-
-      {/* Target Exams Section */}
-      <View style={styles.sectionHeader}>
-        <AppText variant="heading">Target Exams ({targets.length}/3)</AppText>
-        <Pressable onPress={() => router.push('/exams')}>
-          <AppText variant="small" style={{ color: c.primary, fontWeight: '600' }}>
-            Browse All →
+          <AppText style={{ fontSize: 20, fontWeight: '800', letterSpacing: -0.3 }} numberOfLines={1}>
+            {firstName}
           </AppText>
+        </View>
+        <Pressable
+          onPress={() => router.push('/subscription')}
+          accessibilityRole="button"
+          accessibilityLabel="Upgrade to Pro"
+          style={[styles.proPill, { backgroundColor: c.warningBg }]}>
+          <Ionicons name="sparkles" size={13} color={c.warning} />
+          <Text style={{ color: c.warningFg, fontWeight: '800', fontSize: 12 }}>PRO</Text>
+        </Pressable>
+        <Pressable
+          onPress={() => router.push('/notifications')}
+          accessibilityRole="button"
+          accessibilityLabel={unread > 0 ? `Notifications, ${unread} unread` : 'Notifications'}
+          style={[styles.iconBtn, { backgroundColor: c.surface }, elevation(c, 1)]}>
+          <Ionicons name="notifications-outline" size={20} color={c.text} />
+          {unread > 0 ? <View style={[styles.dot, { backgroundColor: c.danger, borderColor: c.surface }]} /> : null}
         </Pressable>
       </View>
 
-      {targets.length === 0 ? (
-        <View style={[styles.emptyCard, { backgroundColor: c.surface, borderColor: c.border }]}>
-          <AppText variant="small" muted style={{ marginBottom: space.sm }}>
-            No target exams selected yet.
-          </AppText>
-          <Button title="Choose Target Exams" variant="outline" onPress={() => router.push('/onboarding')} />
-        </View>
-      ) : (
-        <View style={{ gap: 6, marginBottom: space.md }}>
-          {targets.map((t, index) => (
-            <Pressable
-              key={t.id}
-              onPress={() =>
-                router.push({
-                  pathname: '/exams/[id]',
-                  params: { id: t.id, name: t.name, category: t.category },
-                })
-              }
-              style={[styles.targetCard, { backgroundColor: c.surface, borderColor: c.border }]}>
-              <View style={[styles.priorityBadge, { backgroundColor: index === 0 ? c.primary : c.bg }]}>
-                <AppText
-                  variant="small"
-                  style={{
-                    color: index === 0 ? c.primaryText : c.textMuted,
-                    fontWeight: '700',
-                    fontSize: 10,
-                  }}>
-                  {index === 0 ? 'MAIN' : `#${index + 1}`}
-                </AppText>
-              </View>
-              <View style={{ flex: 1 }}>
-                <AppText style={{ fontWeight: '600' }} numberOfLines={1}>
-                  {t.name}
-                </AppText>
-              </View>
-              <View style={[styles.practicePill, { backgroundColor: c.bg }]}>
-                <AppText variant="small" style={{ color: c.primary, fontWeight: '700', fontSize: 11 }}>
-                  Tests →
-                </AppText>
-              </View>
-            </Pressable>
-          ))}
-        </View>
-      )}
+      <View style={{ marginTop: space.md }}>
+        <ExamSwitcher />
+      </View>
 
-      {/* Popular / Category Exams Strip */}
-      {(recommendedExamsQ.data ?? []).length > 0 ? (
-        <View style={{ marginBottom: space.md }}>
-          <View style={styles.sectionHeader}>
-            <AppText variant="heading">Popular Exams</AppText>
-            <Pressable onPress={() => router.push('/exams')}>
-              <AppText variant="small" style={{ color: c.primary, fontWeight: '600' }}>
-                See all
-              </AppText>
-            </Pressable>
-          </View>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            <View style={{ flexDirection: 'row', gap: 8 }}>
-              {(recommendedExamsQ.data ?? []).slice(0, 8).map((ex) => (
-                <Pressable
-                  key={ex.id}
-                  onPress={() =>
-                    router.push({
-                      pathname: '/exams/[id]',
-                      params: { id: ex.id, name: ex.name, category: primaryCatId },
-                    })
-                  }
-                  style={[styles.popularCard, { backgroundColor: c.surface, borderColor: c.border }]}>
-                  <AppText style={{ fontWeight: '600', fontSize: 12.5 }} numberOfLines={2}>
-                    {ex.name}
-                  </AppText>
-                  <AppText variant="small" style={{ color: c.primary, fontWeight: '600', marginTop: 4 }}>
-                    Open →
-                  </AppText>
-                </Pressable>
-              ))}
-            </View>
-          </ScrollView>
+      {/* Hero: goal + streak */}
+      <Card tone="hero" style={{ marginTop: space.sm, gap: space.lg }}>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          <Pressable style={{ flex: 1 }} onPress={() => router.push('/onboarding')}>
+            <Text style={{ color: c.heroMuted, fontSize: 12, fontWeight: '700', letterSpacing: 0.6 }}>
+              {mainTarget ? 'YOUR TARGET · WEEK STREAK' : 'GET STARTED'}
+            </Text>
+            <Text style={{ color: c.heroText, fontSize: 22, fontWeight: '800', marginTop: 4, letterSpacing: -0.4 }} numberOfLines={2}>
+              {mainTarget ? mainTarget.name : 'Pick your target exam'}
+            </Text>
+          </Pressable>
+          <ProgressRing
+            value={Math.min(streak?.currentStreak ?? 0, 7) / 7}
+            size={84}
+            stroke={8}
+            color={c.heroText}
+            track={c.heroSoft}>
+            <Text style={{ fontSize: 14 }}>🔥</Text>
+            <Text style={{ color: c.heroText, fontWeight: '800', fontSize: 18, marginTop: -2 }}>{streak?.currentStreak ?? 0}</Text>
+          </ProgressRing>
         </View>
+
+        <View style={{ flexDirection: 'row', gap: space.sm }}>
+          <HeroStat label="Points" value={streak?.totalPoints ?? 0} />
+          <HeroStat label="Best streak" value={`${streak?.longestStreak ?? 0}d`} />
+          <HeroStat label="Quizzes" value={streak?.totalQuizzesTaken ?? 0} />
+        </View>
+
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => router.push('/(tabs)/tests')}
+          style={({ pressed }) => [styles.heroCta, { backgroundColor: c.heroText, opacity: pressed ? 0.9 : 1 }]}>
+          <Ionicons name={streak?.dailyGoalCompleted ? 'checkmark-circle' : 'flash'} size={18} color={c.hero} />
+          <Text style={{ color: c.hero, fontWeight: '800', fontSize: 15 }}>
+            {streak?.dailyGoalCompleted ? "Daily goal done · Practice more" : 'Start today’s practice'}
+          </Text>
+        </Pressable>
+      </Card>
+
+      {needsSetup ? (
+        <Card tone="soft" style={{ marginTop: space.md, flexDirection: 'row', alignItems: 'center', gap: space.md }}>
+          <View style={{ flex: 1 }}>
+            <AppText style={{ fontWeight: '800' }}>Finish your setup</AppText>
+            <AppText variant="small" muted>
+              Unlock personalised mocks, syllabus and alerts.
+            </AppText>
+          </View>
+          <View style={{ width: 96 }}>
+            <Button title="Setup" onPress={() => router.push('/onboarding')} />
+          </View>
+        </Card>
       ) : null}
 
-      {/* Personalized Exam Alerts */}
-      <View style={styles.sectionHeader}>
-        <AppText variant="heading">Exam Updates & Alerts</AppText>
+      {/* Today's plan (learning summary) */}
+      <SectionHeader title="Today’s plan" />
+      <View style={{ flexDirection: 'row', gap: space.sm }}>
+        <PlanTile
+          icon="refresh-circle"
+          color={c.info}
+          bg={c.infoBg}
+          value={summary?.revision_due}
+          label="Revisions due"
+          loading={summaryQ.isLoading}
+          onPress={() => router.push('/mistakes')}
+        />
+        <PlanTile
+          icon="alert-circle"
+          color={c.warning}
+          bg={c.warningBg}
+          value={summary?.open_mistakes}
+          label="Mistakes to fix"
+          loading={summaryQ.isLoading}
+          onPress={() => router.push('/mistakes')}
+        />
+        <PlanTile
+          icon="bookmark"
+          color={c.marked}
+          bg={c.markedBg}
+          value={summary?.saved_questions}
+          label="Saved Qs"
+          loading={summaryQ.isLoading}
+          onPress={() => router.push('/mistakes')}
+        />
       </View>
-      {alerts.length === 0 ? (
-        <View style={[styles.emptyCard, { backgroundColor: c.surface, borderColor: c.border }]}>
-          <AppText variant="small" muted>
-            No active exam notifications right now.
-          </AppText>
-        </View>
-      ) : (
-        <View style={{ gap: 6 }}>
-          {alerts.slice(0, 5).map((alert) => (
-            <Pressable
-              key={alert.id}
-              onPress={() =>
-                router.push({
-                  pathname: '/exams/[id]',
-                  params: { id: alert.exam_id, name: alert.exam_name },
-                })
-              }
-              style={[styles.alertCard, { backgroundColor: c.surface, borderColor: c.border }]}>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                <AppText variant="small" style={{ color: c.primary, fontWeight: '700', fontSize: 11 }}>
-                  {alert.exam_name} · {alert.update_type}
-                </AppText>
-                {alert.is_new ? (
-                  <AppText variant="small" style={{ color: c.success, fontWeight: '700', fontSize: 10 }}>
-                    NEW
+
+      {/* Shortcuts */}
+      <SectionHeader title="Explore" />
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={{ marginHorizontal: -16 }}
+        contentContainerStyle={{ paddingHorizontal: 16, gap: space.sm, paddingVertical: 4 }}>
+        {shortcuts.map((s) => (
+          <Pressable
+            key={s.label}
+            accessibilityRole="button"
+            accessibilityLabel={s.label}
+            onPress={() => router.push(s.to as never)}
+            style={({ pressed }) => [
+              styles.shortcut,
+              { backgroundColor: c.surface, transform: [{ scale: pressed ? 0.96 : 1 }] },
+              elevation(c, 1),
+            ]}>
+            <IconTile icon={s.icon} color={s.color} bg={s.bg} size={42} />
+            <Text style={{ color: c.text, fontWeight: '700', fontSize: 12.5, marginTop: 8 }} numberOfLines={1}>
+              {s.label}
+            </Text>
+          </Pressable>
+        ))}
+      </ScrollView>
+
+      {/* Target exams */}
+      {targets.length > 0 ? (
+        <>
+          <SectionHeader title={`Target exams · ${targets.length}/3`} action="Edit" onAction={() => router.push('/onboarding')} />
+          <View style={{ gap: space.sm }}>
+            {targets.map((t, i) => (
+              <Card
+                key={t.id}
+                onPress={() =>
+                  router.push({ pathname: '/exams/[id]', params: { id: t.id, name: t.name, category: t.category } })
+                }
+                style={{ flexDirection: 'row', alignItems: 'center', gap: space.md, padding: space.md }}>
+                <View style={[styles.rank, { backgroundColor: i === 0 ? c.primary : c.primarySoft }]}>
+                  <Text style={{ color: i === 0 ? c.primaryText : c.primary, fontWeight: '800' }}>{i + 1}</Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <AppText style={{ fontWeight: '700' }} numberOfLines={1}>
+                    {t.name}
                   </AppText>
-                ) : null}
-              </View>
-              <AppText style={{ fontWeight: '600', marginTop: 1 }} numberOfLines={1}>
-                {alert.title}
-              </AppText>
-              {alert.exam_date_display || alert.total_vacancies ? (
-                <AppText variant="small" muted style={{ marginTop: 2 }}>
-                  {[
-                    alert.exam_date_display ? `Date: ${alert.exam_date_display}` : null,
-                    alert.total_vacancies ? `${alert.total_vacancies} Vacancies` : null,
-                  ]
-                    .filter(Boolean)
-                    .join(' · ')}
+                  <AppText variant="small" muted>
+                    {i === 0 ? 'Main goal' : 'Backup goal'}
+                  </AppText>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color={c.textMuted} />
+              </Card>
+            ))}
+          </View>
+        </>
+      ) : null}
+
+      {/* Alerts */}
+      <SectionHeader title="Exam updates" />
+      {alertsQ.isLoading ? (
+        <Skeleton height={92} radiusPx={radius.xl} />
+      ) : alerts.length === 0 ? (
+        <Card style={{ alignItems: 'center', gap: 4 }}>
+          <Ionicons name="notifications-off-outline" size={22} color={c.textMuted} />
+          <AppText variant="small" muted>
+            You’re all caught up — no new exam updates.
+          </AppText>
+        </Card>
+      ) : (
+        <View style={{ gap: space.sm }}>
+          {alerts.slice(0, 5).map((a) => (
+            <Card
+              key={a.id}
+              onPress={() => router.push({ pathname: '/exams/[id]', params: { id: a.exam_id, name: a.exam_name } })}
+              style={{ gap: 6 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Badge label={a.update_type} tone="primary" />
+                {a.is_new ? <Badge label="New" tone="success" /> : null}
+                <View style={{ flex: 1 }} />
+                <AppText variant="small" muted numberOfLines={1} style={{ maxWidth: 140 }}>
+                  {a.exam_name}
                 </AppText>
+              </View>
+              <AppText style={{ fontWeight: '700' }} numberOfLines={2}>
+                {a.title}
+              </AppText>
+              {a.exam_date_display || a.total_vacancies || a.application_end ? (
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
+                  {a.exam_date_display ? <Meta icon="calendar-outline" text={a.exam_date_display} /> : null}
+                  {a.total_vacancies ? <Meta icon="people-outline" text={`${a.total_vacancies} posts`} /> : null}
+                  {a.application_end ? <Meta icon="time-outline" text={`Apply by ${a.application_end}`} /> : null}
+                </View>
               ) : null}
-            </Pressable>
+            </Card>
           ))}
         </View>
       )}
+
+      {/* Discover */}
+      {(recommendedExamsQ.data ?? []).length > 0 ? (
+        <>
+          <SectionHeader title="Discover exams" action="See all" onAction={() => router.push('/exams')} />
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={{ marginHorizontal: -16 }}
+            contentContainerStyle={{ paddingHorizontal: 16, gap: space.sm, paddingVertical: 4 }}>
+            {(recommendedExamsQ.data ?? []).slice(0, 10).map((ex) => (
+              <Card
+                key={ex.id}
+                onPress={() =>
+                  router.push({ pathname: '/exams/[id]', params: { id: ex.id, name: ex.name, category: primaryCatId } })
+                }
+                style={{ width: 150, padding: space.md, gap: 10 }}>
+                <IconTile icon="ribbon" color={c.primary} bg={c.primarySoft} size={36} />
+                <AppText style={{ fontWeight: '700', fontSize: 13.5 }} numberOfLines={2}>
+                  {ex.name}
+                </AppText>
+              </Card>
+            ))}
+          </ScrollView>
+        </>
+      ) : null}
     </Screen>
   );
 }
 
+function HeroStat({ label, value }: { label: string; value: string | number }) {
+  const c = useColors();
+  return (
+    <View style={[styles.heroStat, { backgroundColor: c.heroSoft }]}>
+      <Text style={{ color: c.heroText, fontWeight: '800', fontSize: 17 }}>{value}</Text>
+      <Text style={{ color: c.heroMuted, fontSize: 11, fontWeight: '600' }}>{label}</Text>
+    </View>
+  );
+}
+
+function PlanTile({
+  icon,
+  color,
+  bg,
+  value,
+  label,
+  loading,
+  onPress,
+}: {
+  icon: IconName;
+  color: string;
+  bg: string;
+  value?: number;
+  label: string;
+  loading?: boolean;
+  onPress: () => void;
+}) {
+  const c = useColors();
+  return (
+    <Card onPress={onPress} accessibilityLabel={`${label}: ${value ?? 0}`} style={{ flex: 1, padding: space.md, gap: 10 }}>
+      <IconTile icon={icon} color={color} bg={bg} size={34} />
+      <View>
+        {loading ? (
+          <Skeleton height={22} width={28} />
+        ) : (
+          <Text style={{ color: c.text, fontSize: 22, fontWeight: '800', letterSpacing: -0.4 }}>{value ?? 0}</Text>
+        )}
+        <Text style={{ color: c.textMuted, fontSize: 12, fontWeight: '600' }}>{label}</Text>
+      </View>
+    </Card>
+  );
+}
+
+function Meta({ icon, text }: { icon: IconName; text: string }) {
+  const c = useColors();
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+      <Ionicons name={icon} size={13} color={c.textMuted} />
+      <Text style={{ color: c.textMuted, fontSize: 12, fontWeight: '600' }}>{text}</Text>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
-  topRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: space.sm,
-    gap: space.sm,
-  },
-  topActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  streakPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 8,
-    paddingVertical: 5,
-    borderRadius: radius.sm,
-    borderWidth: 1,
-  },
-  iconBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: radius.sm,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  header: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
+  avatar: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
+  iconBtn: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
+  dot: { position: 'absolute', top: 10, right: 11, width: 10, height: 10, borderRadius: 5, borderWidth: 2 },
   proPill: {
-    paddingHorizontal: 7,
-    paddingVertical: 5,
-    borderRadius: radius.sm,
-    borderWidth: 1,
-  },
-  catBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: radius.sm,
-    borderWidth: 1,
-  },
-  setupCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: space.md,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    gap: space.sm,
-    marginBottom: space.md,
-  },
-  gridCard: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    paddingVertical: 8,
-    paddingHorizontal: 4,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    marginBottom: space.md,
-  },
-  gridItem: {
-    width: '25%',
-    alignItems: 'center',
-    paddingVertical: 6,
     gap: 4,
+    paddingHorizontal: 10,
+    height: 32,
+    borderRadius: radius.pill,
   },
-  gridIconWrap: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
+  streakBubble: { alignItems: 'center', paddingHorizontal: 14, paddingVertical: 8, borderRadius: radius.lg },
+  heroStat: { flex: 1, paddingVertical: 10, paddingHorizontal: 12, borderRadius: radius.md },
+  heroCta: {
+    height: 50,
+    borderRadius: radius.lg,
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    gap: 8,
   },
-  gridLabel: {
-    fontSize: 12.5,
-    fontWeight: '600',
-    textAlign: 'center',
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 6,
-  },
-  emptyCard: {
-    padding: space.md,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    alignItems: 'center',
-    marginBottom: space.md,
-  },
-  targetCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: space.md,
-    paddingVertical: 8,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    gap: space.sm,
-  },
-  priorityBadge: {
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
-  practicePill: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-  },
-  popularCard: {
-    width: 132,
-    padding: space.sm,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    justifyContent: 'space-between',
-  },
-  alertCard: {
-    paddingHorizontal: space.md,
-    paddingVertical: 8,
-    borderRadius: radius.md,
-    borderWidth: 1,
-  },
+  shortcut: { width: 96, padding: space.md, borderRadius: radius.lg, alignItems: 'flex-start' },
+  rank: { width: 36, height: 36, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
 });

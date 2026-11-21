@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { View } from 'react-native';
 
 import { toApiError } from '@/api/client';
-import { AppText, Button, ErrorBanner, Screen, TextField } from '@/components/ui/kit';
+import { AppText, AuthHeader, Button, ErrorBanner, Screen, TextField } from '@/components/ui/kit';
 import { useAuth } from '@/features/auth/auth-provider';
 import { space, useColors } from '@/theme';
 
@@ -37,12 +37,7 @@ export default function Login() {
 
   return (
     <Screen style={{ justifyContent: 'center' }}>
-      <View style={{ marginBottom: space.xl }}>
-        <AppText variant="title" style={{ color: c.primary }}>
-          Examerit
-        </AppText>
-        <AppText muted>Sign in to continue your exam preparation</AppText>
-      </View>
+      <AuthHeader title="Welcome back" subtitle="Sign in to continue your exam preparation." />
       {error ? <ErrorBanner message={error} /> : null}
       <TextField
         label="Email"
@@ -68,7 +63,7 @@ export default function Login() {
       <View style={{ flexDirection: 'row', justifyContent: 'center', marginTop: space.lg, gap: 6 }}>
         <AppText muted>New here?</AppText>
         <Link href="/register">
-          <AppText style={{ color: c.primary, fontWeight: '600' }}>Create account</AppText>
+          <AppText style={{ color: c.primary, fontWeight: '800' }}>Create account</AppText>
         </Link>
       </View>
     </Screen>

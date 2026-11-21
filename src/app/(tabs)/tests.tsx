@@ -2,33 +2,93 @@ import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { ScrollView, Text, View } from 'react-native';
 
 import { getCategories, getExamPublishedTests } from '@/api/catalog';
 import { getExamProgress } from '@/api/dashboard';
 import { getStudentCategories, getStudentTargets } from '@/api/student';
 import { FreeQuizItem, getFreeQuizzes } from '@/api/tests';
-import { AppText, Button, EmptyView, ErrorView, LoadingView, Screen } from '@/components/ui/kit';
-import { radius, space, useColors } from '@/theme';
+import {
+  AppText,
+  Badge,
+  Button,
+  Card,
+  Chip,
+  EmptyView,
+  ErrorView,
+  IconTile,
+  LoadingView,
+  Screen,
+  Segmented,
+  Skeleton,
+} from '@/components/ui/kit';
+import { ExamSwitcher } from '@/components/ExamSwitcher';
+import { useActiveExam } from '@/features/exam/active-exam';
+import { space, useColors } from '@/theme';
+
+type IconName = React.ComponentProps<typeof Ionicons>['name'];
+
+function TestCard({
+  title,
+  meta,
+  state,
+  score,
+  tier,
+  featured,
+  onPress,
+}: {
+  title: string;
+  meta: string;
+  state: 'new' | 'in_progress' | 'completed';
+  score?: string;
+  tier?: 'free' | 'pro';
+  featured?: boolean;
+  onPress: () => void;
+}) {
+  const c = useColors();
+  const icon: IconName = state === 'completed' ? 'checkmark-circle' : state === 'in_progress' ? 'play-circle' : 'document-text';
+  const [fg, bg] =
+    state === 'completed' ? [c.success, c.successBg] : state === 'in_progress' ? [c.primary, c.primarySoft] : [c.textMuted, c.skeleton];
+  const cta = state === 'completed' ? 'Review' : state === 'in_progress' ? 'Resume' : 'Start';
+  return (
+    <Card onPress={onPress} accessibilityLabel={`${title}, ${cta}`} style={{ flexDirection: 'row', alignItems: 'center', gap: space.md, padding: space.md }}>
+      <IconTile icon={icon} color={fg} bg={bg} size={44} />
+      <View style={{ flex: 1, gap: 3 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          {featured ? <Ionicons name="star" size={13} color={c.star} /> : null}
+          <AppText style={{ fontWeight: '700', flexShrink: 1 }} numberOfLines={1}>
+            {title}
+          </AppText>
+          {tier ? <Badge label={tier === 'free' ? 'Free' : 'Pro'} tone={tier === 'free' ? 'success' : 'warning'} /> : null}
+        </View>
+        <AppText variant="small" muted numberOfLines={1}>
+          {meta}
+        </AppText>
+        {score ? (
+          <Text style={{ color: c.success, fontWeight: '800', fontSize: 12.5 }}>Score {score}</Text>
+        ) : state === 'in_progress' ? (
+          <Text style={{ color: c.primary, fontWeight: '800', fontSize: 12.5 }}>In progress</Text>
+        ) : null}
+      </View>
+      <Text style={{ color: c.primary, fontWeight: '800', fontSize: 13 }}>{cta}</Text>
+    </Card>
+  );
+}
 
 export default function TestsHubScreen() {
-  const c = useColors();
 
   const myCatsQ = useQuery({ queryKey: ['student-categories'], queryFn: getStudentCategories });
   const myTargetsQ = useQuery({ queryKey: ['student-targets'], queryFn: getStudentTargets });
   const allCatsQ = useQuery({ queryKey: ['categories'], queryFn: getCategories });
 
   const [tabMode, setTabMode] = useState<'mocks' | 'quizzes'>('mocks');
-  const [selectedTargetExamId, setSelectedTargetExamId] = useState<string | null>(null);
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
   const [selectedSubject, setSelectedSubject] = useState<string | undefined>(undefined);
   const [selectedFormat, setSelectedFormat] = useState<string | undefined>(undefined);
 
   const targets = useMemo(() => myTargetsQ.data ?? [], [myTargetsQ.data]);
-  const activeExamId = useMemo(
-    () => selectedTargetExamId ?? targets[0]?.id ?? '',
-    [selectedTargetExamId, targets],
-  );
+  const { examId } = useActiveExam();
+  const activeExamId = examId ?? '';
 
   const activeCategoryId = useMemo(() => {
     if (selectedCategoryId) return selectedCategoryId;
@@ -90,337 +150,140 @@ export default function TestsHubScreen() {
     }
   };
 
+  const chipScroll = { marginHorizontal: -16 } as const;
+  const chipRow = { paddingHorizontal: 16, gap: 8, paddingVertical: 6 } as const;
+  const categoryChips = myCatsQ.data?.categories.length
+    ? myCatsQ.data.categories.map((sc) => ({ id: sc.categoryId, name: sc.name }))
+    : (allCatsQ.data ?? []).filter((cat) => cat.exam_count > 0).map((cat) => ({ id: cat.id, name: cat.name }));
+
   return (
     <Screen refreshing={refreshing} onRefresh={onRefresh}>
-      <View style={styles.headerRow}>
-        <AppText variant="title">Tests & Quizzes</AppText>
-        <View style={{ flexDirection: 'row', gap: 6 }}>
-          <Pressable
-            onPress={() => router.push('/exams')}
-            style={[styles.browseBtn, { backgroundColor: c.surface, borderColor: c.border }]}>
-            <AppText variant="small" style={{ color: c.primary, fontWeight: '700' }}>
-              All Exams
-            </AppText>
-          </Pressable>
-          <Pressable
-            onPress={() => router.push('/live-tests')}
-            style={[styles.browseBtn, { backgroundColor: c.liveBg, borderColor: c.danger }]}>
-            <Ionicons name="radio-outline" size={14} color={c.danger} />
-            <AppText variant="small" style={{ color: c.danger, fontWeight: '700' }}>
-              Live
-            </AppText>
-          </Pressable>
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: space.md }}>
+        <View>
+          <AppText variant="title">Practice</AppText>
+          <AppText variant="small" muted>
+            Mocks, quizzes and live tests
+          </AppText>
+        </View>
+        <View style={{ flexDirection: 'row', gap: 8 }}>
+          <Chip label="Live" icon="radio" onPress={() => router.push('/live-tests')} />
+          <Chip label="Exams" icon="school" onPress={() => router.push('/exams')} />
         </View>
       </View>
 
-      {/* Mode Switcher */}
-      <View style={[styles.segmented, { backgroundColor: c.surface, borderColor: c.border }]}>
-        <Pressable
-          onPress={() => setTabMode('mocks')}
-          accessibilityRole="tab"
-          accessibilityState={{ selected: tabMode === 'mocks' }}
-          style={[
-            styles.segmentBtn,
-            tabMode === 'mocks' ? { backgroundColor: c.primary } : null,
-          ]}>
-          <AppText
-            variant="small"
-            style={{
-              color: tabMode === 'mocks' ? c.primaryText : c.text,
-              fontWeight: '700',
-            }}>
-            Exam Mock Tests
-          </AppText>
-        </Pressable>
-        <Pressable
-          onPress={() => setTabMode('quizzes')}
-          accessibilityRole="tab"
-          accessibilityState={{ selected: tabMode === 'quizzes' }}
-          style={[
-            styles.segmentBtn,
-            tabMode === 'quizzes' ? { backgroundColor: c.primary } : null,
-          ]}>
-          <AppText
-            variant="small"
-            style={{
-              color: tabMode === 'quizzes' ? c.primaryText : c.text,
-              fontWeight: '700',
-            }}>
-            Daily Quizzes & Drills
-          </AppText>
-        </Pressable>
-      </View>
+      <Segmented
+        value={tabMode}
+        onChange={setTabMode}
+        options={[
+          { key: 'mocks', label: 'Mock tests' },
+          { key: 'quizzes', label: 'Quizzes & drills' },
+        ]}
+      />
 
       {tabMode === 'mocks' ? (
         <>
           {targets.length === 0 ? (
             <EmptyView
-              title="No Target Exam Selected"
+              title="No target exam yet"
               message="Choose up to 3 target exams to see their full-length mocks and sectional tests."
             />
           ) : (
             <>
-              {/* Target Exam Selector */}
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                style={{ marginVertical: space.sm }}>
-                <View style={{ flexDirection: 'row', gap: 6 }}>
-                  {targets.map((t) => {
-                    const active = activeExamId === t.id;
-                    return (
-                      <Pressable
-                        key={t.id}
-                        onPress={() => setSelectedTargetExamId(t.id)}
-                        style={[
-                          styles.chip,
-                          {
-                            backgroundColor: active ? c.primary : c.surface,
-                            borderColor: active ? c.primary : c.border,
-                          },
-                        ]}>
-                        <AppText
-                          variant="small"
-                          style={{ color: active ? c.primaryText : c.text, fontWeight: '600' }}>
-                          {t.name}
-                        </AppText>
-                      </Pressable>
-                    );
-                  })}
-                </View>
-              </ScrollView>
+              <ExamSwitcher />
 
               {mocksQ.isLoading ? (
-                <LoadingView />
+                <ListSkeleton />
               ) : mocksQ.isError ? (
                 <ErrorView message={mocksQ.error.message} onRetry={() => mocksQ.refetch()} />
               ) : (mocksQ.data ?? []).length === 0 ? (
-                <EmptyView
-                  title="No published tests yet"
-                  message="Try switching to Daily Quizzes & Drills or exploring another exam."
-                />
+                <EmptyView title="No published tests yet" message="Try Quizzes & drills or explore another exam." />
               ) : (
-                <View style={{ gap: 6 }}>
+                <View style={{ gap: space.sm, marginTop: space.sm }}>
                   {(mocksQ.data ?? []).map((t) => {
                     const prog = progressMap.get(t.id);
+                    const state = prog?.completed ? 'completed' : prog?.in_progress ? 'in_progress' : 'new';
                     return (
-                      <Pressable
+                      <TestCard
                         key={t.id}
+                        title={t.name}
+                        meta={[t.stage_name, t.format_label, `${t.question_count} Qs`, `${t.duration_minutes}m`, `${t.max_score} marks`]
+                          .filter(Boolean)
+                          .join(' · ')}
+                        state={state}
+                        score={prog?.completed ? `${prog.latest_score ?? 0}/${prog.max_score ?? t.max_score}` : undefined}
+                        tier={t.access_tier === 'free' ? 'free' : 'pro'}
                         onPress={() => router.push({ pathname: '/tests/[id]', params: { id: t.id } })}
-                        style={[styles.card, { backgroundColor: c.surface, borderColor: c.border }]}>
-                        <View style={{ flex: 1, gap: 2 }}>
-                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                            <AppText style={{ fontWeight: '600', flex: 1 }} numberOfLines={1}>
-                              {t.name}
-                            </AppText>
-                            <View
-                              style={[
-                                styles.tierBadge,
-                                { backgroundColor: t.access_tier === 'free' ? c.successBg : c.warningBg },
-                              ]}>
-                              <AppText
-                                variant="small"
-                                style={{
-                                  fontSize: 9.5,
-                                  fontWeight: '700',
-                                  color: t.access_tier === 'free' ? c.successFg : c.warningFg,
-                                }}>
-                                {t.access_tier === 'free' ? 'FREE' : 'PRO'}
-                              </AppText>
-                            </View>
-                          </View>
-                          <AppText variant="small" muted>
-                            {[
-                              t.stage_name,
-                              t.format_label,
-                              `${t.question_count} Qs`,
-                              `${t.duration_minutes}m`,
-                              `${t.max_score} marks`,
-                            ]
-                              .filter(Boolean)
-                              .join(' · ')}
-                          </AppText>
-                          {prog?.completed ? (
-                            <AppText variant="small" style={{ color: c.success, fontWeight: '600' }}>
-                              ✓ Score: {prog.latest_score ?? 0}/{prog.max_score ?? t.max_score}
-                            </AppText>
-                          ) : prog?.in_progress ? (
-                            <AppText variant="small" style={{ color: c.primary, fontWeight: '600' }}>
-                              ● Resume Attempt
-                            </AppText>
-                          ) : null}
-                        </View>
-                        <View style={[styles.startPill, { backgroundColor: c.bg }]}>
-                          <AppText
-                            variant="small"
-                            style={{ color: c.primary, fontWeight: '700', fontSize: 11 }}>
-                            {prog?.completed ? 'Review' : prog?.in_progress ? 'Resume' : 'Start'}
-                          </AppText>
-                        </View>
-                      </Pressable>
+                      />
                     );
                   })}
                 </View>
               )}
             </>
           )}
-          <View style={{ marginTop: space.md }}>
-            <Button title="Explore All Exams" variant="outline" onPress={() => router.push('/exams')} />
+          <View style={{ marginTop: space.lg }}>
+            <Button title="Explore all exams" variant="outline" onPress={() => router.push('/exams')} />
           </View>
         </>
       ) : (
         <>
-          {/* Category Picker for Free Quizzes */}
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: space.sm }}>
-            <View style={{ flexDirection: 'row', gap: 6 }}>
-              {(myCatsQ.data?.categories.length
-                ? myCatsQ.data.categories.map((sc) => ({ id: sc.categoryId, name: sc.name }))
-                : (allCatsQ.data ?? [])
-                    .filter((cat) => cat.exam_count > 0)
-                    .map((cat) => ({ id: cat.id, name: cat.name }))
-              ).map((cat) => {
-                const active = activeCategoryId === cat.id;
-                return (
-                  <Pressable
-                    key={cat.id}
-                    onPress={() => {
-                      setSelectedCategoryId(cat.id);
-                      setSelectedSubject(undefined);
-                    }}
-                    style={[
-                      styles.chip,
-                      {
-                        backgroundColor: active ? c.primary : c.surface,
-                        borderColor: active ? c.primary : c.border,
-                      },
-                    ]}>
-                    <AppText
-                      variant="small"
-                      style={{ color: active ? c.primaryText : c.text, fontWeight: '600' }}>
-                      {cat.name}
-                    </AppText>
-                  </Pressable>
-                );
-              })}
-            </View>
-          </ScrollView>
-
-          {/* Subject & Speed Format Chips */}
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginVertical: 6 }}>
-            <View style={{ flexDirection: 'row', gap: 6 }}>
-              <Pressable
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={chipScroll} contentContainerStyle={chipRow}>
+            {categoryChips.map((cat) => (
+              <Chip
+                key={cat.id}
+                label={cat.name}
+                selected={activeCategoryId === cat.id}
                 onPress={() => {
+                  setSelectedCategoryId(cat.id);
                   setSelectedSubject(undefined);
-                  setSelectedFormat(undefined);
                 }}
-                style={[
-                  styles.smallChip,
-                  {
-                    backgroundColor: !selectedSubject && !selectedFormat ? c.primary : c.surface,
-                    borderColor: c.border,
-                  },
-                ]}>
-                <AppText
-                  variant="small"
-                  style={{ color: !selectedSubject && !selectedFormat ? c.primaryText : c.text }}>
-                  All
-                </AppText>
-              </Pressable>
-              <Pressable
-                onPress={() => setSelectedFormat(selectedFormat === 'speed' ? undefined : 'speed')}
-                style={[
-                  styles.smallChip,
-                  {
-                    backgroundColor: selectedFormat === 'speed' ? c.primary : c.surface,
-                    borderColor: c.border,
-                  },
-                ]}>
-                <AppText
-                  variant="small"
-                  style={{ color: selectedFormat === 'speed' ? c.primaryText : c.text }}>
-                  ⚡ Speed Drills
-                </AppText>
-              </Pressable>
-              {(freeQuizzesQ.data?.subjects ?? []).map((subj) => {
-                const active = selectedSubject === subj.key;
-                return (
-                  <Pressable
-                    key={subj.key}
-                    onPress={() => setSelectedSubject(active ? undefined : subj.key)}
-                    style={[
-                      styles.smallChip,
-                      {
-                        backgroundColor: active ? c.primary : c.surface,
-                        borderColor: c.border,
-                      },
-                    ]}>
-                    <AppText variant="small" style={{ color: active ? c.primaryText : c.text }}>
-                      {subj.label} ({subj.count})
-                    </AppText>
-                  </Pressable>
-                );
-              })}
-            </View>
+              />
+            ))}
+          </ScrollView>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={chipScroll} contentContainerStyle={chipRow}>
+            <Chip
+              label="All"
+              selected={!selectedSubject && !selectedFormat}
+              onPress={() => {
+                setSelectedSubject(undefined);
+                setSelectedFormat(undefined);
+              }}
+            />
+            <Chip
+              label="Speed drills"
+              icon="flash"
+              selected={selectedFormat === 'speed'}
+              onPress={() => setSelectedFormat(selectedFormat === 'speed' ? undefined : 'speed')}
+            />
+            {(freeQuizzesQ.data?.subjects ?? []).map((subj) => (
+              <Chip
+                key={subj.key}
+                label={`${subj.label} · ${subj.count}`}
+                selected={selectedSubject === subj.key}
+                onPress={() => setSelectedSubject(selectedSubject === subj.key ? undefined : subj.key)}
+              />
+            ))}
           </ScrollView>
 
           {freeQuizzesQ.isLoading ? (
-            <LoadingView />
+            <ListSkeleton />
           ) : freeQuizzesQ.isError ? (
             <ErrorView message={freeQuizzesQ.error.message} onRetry={() => freeQuizzesQ.refetch()} />
           ) : (freeQuizzesQ.data?.quizzes ?? []).length === 0 ? (
-            <EmptyView
-              title="No Free Quizzes Available"
-              message="No quizzes match your current filter in this category."
-            />
+            <EmptyView title="No quizzes here" message="No quizzes match your current filter in this category." />
           ) : (
-            <View style={{ gap: 6 }}>
+            <View style={{ gap: space.sm, marginTop: space.sm }}>
               {(freeQuizzesQ.data?.quizzes ?? []).map((q: FreeQuizItem) => (
-                <Pressable
+                <TestCard
                   key={q.id}
+                  title={q.title}
+                  featured={q.isFeatured}
+                  meta={[q.subjectLabel, q.formatLabel, `${q.questions} Qs`, `${q.durationMin}m`, `${q.marks} marks`]
+                    .filter(Boolean)
+                    .join(' · ')}
+                  state={q.attemptState === 'completed' ? 'completed' : q.attemptState === 'in_progress' ? 'in_progress' : 'new'}
+                  score={q.attemptState === 'completed' ? `${q.lastScore ?? 0}/${q.lastMaxScore ?? q.marks}` : undefined}
                   onPress={() => router.push({ pathname: '/tests/[id]', params: { id: q.id } })}
-                  style={[styles.card, { backgroundColor: c.surface, borderColor: c.border }]}>
-                  <View style={{ flex: 1, gap: 2 }}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                      {q.isFeatured ? (
-                        <AppText variant="small" style={{ color: c.warning, fontWeight: '700' }}>
-                          ★
-                        </AppText>
-                      ) : null}
-                      <AppText style={{ fontWeight: '600', flex: 1 }} numberOfLines={1}>
-                        {q.title}
-                      </AppText>
-                    </View>
-                    <AppText variant="small" muted>
-                      {[
-                        q.subjectLabel,
-                        q.formatLabel,
-                        `${q.questions} Qs`,
-                        `${q.durationMin}m`,
-                        `${q.marks} marks`,
-                      ]
-                        .filter(Boolean)
-                        .join(' · ')}
-                    </AppText>
-                    {q.attemptState === 'completed' ? (
-                      <AppText variant="small" style={{ color: c.success, fontWeight: '600' }}>
-                        ✓ Score: {q.lastScore ?? 0}/{q.lastMaxScore ?? q.marks}
-                      </AppText>
-                    ) : q.attemptState === 'in_progress' ? (
-                      <AppText variant="small" style={{ color: c.primary, fontWeight: '600' }}>
-                        ● Resume
-                      </AppText>
-                    ) : null}
-                  </View>
-                  <View style={[styles.startPill, { backgroundColor: c.bg }]}>
-                    <AppText variant="small" style={{ color: c.primary, fontWeight: '700', fontSize: 11 }}>
-                      {q.attemptState === 'completed'
-                        ? 'Review'
-                        : q.attemptState === 'in_progress'
-                          ? 'Resume'
-                          : 'Start'}
-                    </AppText>
-                  </View>
-                </Pressable>
+                />
               ))}
             </View>
           )}
@@ -430,64 +293,12 @@ export default function TestsHubScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  headerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: space.sm,
-    gap: space.sm,
-  },
-  browseBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: radius.sm,
-    borderWidth: 1,
-  },
-  segmented: {
-    flexDirection: 'row',
-    borderRadius: radius.md,
-    borderWidth: 1,
-    padding: 3,
-  },
-  segmentBtn: {
-    flex: 1,
-    paddingVertical: 6,
-    borderRadius: radius.sm,
-    alignItems: 'center',
-  },
-  chip: {
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: radius.sm,
-    borderWidth: 1,
-  },
-  smallChip: {
-    paddingHorizontal: 9,
-    paddingVertical: 4,
-    borderRadius: radius.sm,
-    borderWidth: 1,
-  },
-  card: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: space.md,
-    paddingVertical: 8,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    gap: space.sm,
-  },
-  tierBadge: {
-    paddingHorizontal: 5,
-    paddingVertical: 1,
-    borderRadius: 4,
-  },
-  startPill: {
-    paddingHorizontal: 9,
-    paddingVertical: 5,
-    borderRadius: 6,
-  },
-});
+function ListSkeleton() {
+  return (
+    <View style={{ gap: 10, marginTop: 8 }}>
+      {[0, 1, 2, 3].map((i) => (
+        <Skeleton key={i} height={76} radiusPx={26} />
+      ))}
+    </View>
+  );
+}

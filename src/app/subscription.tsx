@@ -1,8 +1,7 @@
-import { Ionicons } from '@expo/vector-icons';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Alert, Pressable, StyleSheet, View } from 'react-native';
+import { Alert, Text, View } from 'react-native';
 
 import { toApiError } from '@/api/client';
 import {
@@ -12,8 +11,21 @@ import {
   PaymentHistoryRow,
 } from '@/api/payments';
 import { getMyEntitlements } from '@/api/tests';
-import { AppText, Button, EmptyView, ErrorBanner, ErrorView, LoadingView, Screen } from '@/components/ui/kit';
-import { radius, space, useColors } from '@/theme';
+import {
+  AppText,
+  Badge,
+  Button,
+  Card,
+  EmptyView,
+  ErrorBanner,
+  ErrorView,
+  IconTile,
+  LoadingView,
+  Screen,
+  ScreenHeader,
+  SectionHeader,
+} from '@/components/ui/kit';
+import { space, useColors } from '@/theme';
 
 export default function SubscriptionScreen() {
   const c = useColors();
@@ -65,109 +77,68 @@ export default function SubscriptionScreen() {
 
   return (
     <Screen>
-      <View style={styles.headerRow}>
-        <Pressable onPress={() => (router.canGoBack() ? router.back() : router.replace('/(tabs)/profile'))} hitSlop={10}>
-          <Ionicons name="arrow-back" size={24} color={c.text} />
-        </Pressable>
-        <View style={{ flex: 1 }}>
-          <AppText variant="title" style={{ fontSize: 22 }}>
-            My Subscription
-          </AppText>
-          <AppText variant="small" muted>
-            Manage your Examerit Pro plan, entitlements & billing history
-          </AppText>
-        </View>
-      </View>
+      <ScreenHeader title="My subscription" subtitle="Plan, access and billing history" />
 
       {error ? <ErrorBanner message={error} /> : null}
 
-      {/* Current Subscription Card */}
       {sub ? (
-        <View style={[styles.card, { backgroundColor: c.surface, borderColor: c.primary, borderWidth: 1.5 }]}>
+        <Card tone="hero" style={{ gap: space.sm }}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-            <AppText variant="heading">{sub.plan_name}</AppText>
-            <View
-              style={[
-                styles.statusBadge,
-                { backgroundColor: sub.status === 'active' ? c.successBg : c.liveBg },
-              ]}>
-              <AppText
-                variant="small"
-                style={{
-                  fontWeight: '700',
-                  fontSize: 11,
-                  color: sub.status === 'active' ? c.successFg : c.dangerFg,
-                }}>
-                {sub.status.toUpperCase()}
-              </AppText>
-            </View>
+            <Text style={{ color: c.heroText, fontSize: 22, fontWeight: '800' }}>{sub.plan_name}</Text>
+            <Badge label={sub.status} tone={sub.status === 'active' ? 'success' : 'danger'} />
           </View>
-
           {sub.plan_description ? (
-            <AppText variant="small" muted style={{ marginTop: 4 }}>
-              {sub.plan_description}
-            </AppText>
+            <Text style={{ color: c.heroMuted, fontSize: 13 }}>{sub.plan_description}</Text>
           ) : null}
-
-          <AppText variant="small" style={{ marginTop: space.sm }}>
-            Billing Cycle: <AppText variant="small" style={{ fontWeight: '700' }}>{sub.billing_cycle}</AppText>
-          </AppText>
-          {sub.expires_at ? (
-            <AppText variant="small" muted>
-              Valid Until: {new Date(sub.expires_at).toLocaleDateString()}
-            </AppText>
-          ) : null}
-
-          <View style={{ flexDirection: 'row', gap: space.sm, marginTop: space.md }}>
-            <Button title="Explore Plans" variant="outline" onPress={() => router.push('/pricing')} />
+          <Text style={{ color: c.heroText, fontSize: 13, fontWeight: '700' }}>
+            Billing: {sub.billing_cycle}
+            {sub.expires_at ? ` · Valid until ${new Date(sub.expires_at).toLocaleDateString()}` : ''}
+          </Text>
+          <View style={{ flexDirection: 'row', gap: space.sm, marginTop: space.sm }}>
+            <View style={{ flex: 1 }}>
+              <Button title="Explore plans" variant="outline" onPress={() => router.push('/pricing')} />
+            </View>
             {sub.status === 'active' ? (
-              <Button
-                title="Cancel"
-                variant="danger"
-                loading={cancelling}
-                onPress={confirmCancel}
-              />
+              <View style={{ flex: 1 }}>
+                <Button title="Cancel" variant="danger" loading={cancelling} onPress={confirmCancel} />
+              </View>
             ) : null}
           </View>
-        </View>
+        </Card>
       ) : (
-        <View style={[styles.card, { backgroundColor: c.surface, borderColor: c.border }]}>
-          <AppText variant="heading">Free Tier</AppText>
-          <AppText variant="small" muted style={{ marginVertical: space.xs }}>
-            You are currently on the Free plan. Upgrade to Examerit Pro to unlock full-length mock tests, sectional series, and premium courses.
+        <Card style={{ gap: space.sm }}>
+          <IconTile icon="sparkles" color={c.warning} bg={c.warningBg} size={44} />
+          <AppText variant="heading">You’re on the Free plan</AppText>
+          <AppText variant="small" muted>
+            Upgrade to Examerit Pro to unlock full-length mocks, sectional series and premium courses.
           </AppText>
-          <Button title="View Pricing Plans" onPress={() => router.push('/pricing')} />
-        </View>
+          <Button title="View plans" onPress={() => router.push('/pricing')} />
+        </Card>
       )}
 
-      {/* Server-Resolved Entitlements */}
-      <View style={[styles.card, { backgroundColor: c.surface, borderColor: c.border }]}>
-        <AppText variant="heading" style={{ marginBottom: 4 }}>
-          Unlocked Exam Categories
-        </AppText>
+      <SectionHeader title="Unlocked categories" />
+      <Card>
         {planCats.length === 0 && pkgCats.length === 0 ? (
           <AppText variant="small" muted>
-            Free tier access across all categories (Daily Quizzes, Free Mocks, Syllabus & Current Affairs).
+            Free tier access across all categories (daily quizzes, free mocks, syllabus and current affairs).
           </AppText>
         ) : (
-          <AppText variant="small">
-            Active Paid Access: {[...new Set([...planCats, ...pkgCats])].join(', ')}
-          </AppText>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+            {[...new Set([...planCats, ...pkgCats])].map((cat) => (
+              <Badge key={cat} label={String(cat)} tone="primary" />
+            ))}
+          </View>
         )}
-      </View>
+      </Card>
 
       {/* Payment History */}
-      <AppText variant="heading" style={{ marginTop: space.md, marginBottom: space.sm }}>
-        Payment History ({history.length})
-      </AppText>
+      <SectionHeader title={`Payment history · ${history.length}`} />
       {history.length === 0 ? (
         <EmptyView title="No transactions yet" message="Any completed plan purchases will appear here." />
       ) : (
         <View style={{ gap: space.sm }}>
           {history.map((item: PaymentHistoryRow) => (
-            <View
-              key={item.id}
-              style={[styles.card, { backgroundColor: c.surface, borderColor: c.border }]}>
+            <Card key={item.id} style={{ padding: space.md, gap: 2 }}>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
                 <AppText style={{ fontWeight: '700' }}>
                   {item.plan_name || 'Subscription'} ({item.billing_cycle || 'Plan'})
@@ -178,31 +149,10 @@ export default function SubscriptionScreen() {
                 {new Date(item.created_at).toLocaleDateString()} · Status: {item.status}
                 {item.payment_method ? ` · ${item.payment_method.toUpperCase()}` : ''}
               </AppText>
-            </View>
+            </Card>
           ))}
         </View>
       )}
     </Screen>
   );
 }
-
-const styles = StyleSheet.create({
-  headerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space.md,
-    marginBottom: space.md,
-  },
-  card: {
-    padding: space.md,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    marginBottom: space.sm,
-  },
-  statusBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-  },
-});
-

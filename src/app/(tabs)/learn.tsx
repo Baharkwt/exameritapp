@@ -2,23 +2,68 @@ import { Ionicons } from '@expo/vector-icons';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Alert, Linking, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { Alert, Linking, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { toApiError } from '@/api/client';
 import {
   CourseItem,
   downloadMaterial,
   getCourses,
+  getCurrentAffairs,
   getEnrolledCourses,
   getMaterials,
+  getMyTopicProgress,
+  getVocabularyPractice,
   StudyMaterial,
 } from '@/api/learning';
-import { AppText, EmptyView, ErrorView, LoadingView, Screen } from '@/components/ui/kit';
-import { radius, space, useColors } from '@/theme';
+import {
+  AppText,
+  Badge,
+  Card,
+  EmptyView,
+  ErrorView,
+  IconTile,
+  ProgressBar,
+  ProgressRing,
+  Screen,
+  SectionHeader,
+  Segmented,
+  Skeleton,
+} from '@/components/ui/kit';
+import { ExamSwitcher } from '@/components/ExamSwitcher';
+import { useActiveExam } from '@/features/exam/active-exam';
+import { elevation, radius, space, useColors } from '@/theme';
+
+function ListSkeleton() {
+  return (
+    <View style={{ gap: 10, marginTop: 12 }}>
+      {[0, 1, 2, 3].map((i) => (
+        <Skeleton key={i} height={72} radiusPx={26} />
+      ))}
+    </View>
+  );
+}
 
 export default function LearnHubScreen() {
   const c = useColors();
   const qc = useQueryClient();
+  const { exam } = useActiveExam();
+
+  // Shelves
+  const shelfEnrolledQ = useQuery({ queryKey: ['courses-enrolled'], queryFn: getEnrolledCourses });
+  const progressQ = useQuery({
+    queryKey: ['topic-progress', exam?.id ?? 'all'],
+    queryFn: () => getMyTopicProgress(exam?.id),
+  });
+  const wordQ = useQuery({ queryKey: ['vocab-practice'], queryFn: getVocabularyPractice });
+  const newsQ = useQuery({ queryKey: ['current-affairs-shelf'], queryFn: () => getCurrentAffairs({ limit: 4 }) });
+
+  const topicRows = progressQ.data ?? [];
+  const doneTopics = topicRows.filter((t) => t.state === 'completed' || t.state === 'mastered').length;
+  const learningTopics = topicRows.filter((t) => t.state === 'learning').length;
+  const continueCourse = (shelfEnrolledQ.data ?? []).find((cr) => Number(cr.progressPct ?? 0) < 100);
+  const word = wordQ.data?.[0];
+  const articles = newsQ.data?.articles ?? [];
 
   const [tab, setTab] = useState<'courses' | 'enrolled' | 'materials'>('courses');
   const [search, setSearch] = useState('');
@@ -58,206 +103,234 @@ export default function LearnHubScreen() {
     }
   }
 
+  const shortcuts = [
+    { label: 'Syllabus', sub: 'Topic tracker', icon: 'map', color: c.marked, bg: c.markedBg, to: '/syllabus' },
+    { label: 'Daily News', sub: 'Current affairs', icon: 'newspaper', color: c.info, bg: c.infoBg, to: '/current-affairs' },
+    { label: 'Vocab', sub: 'Word practice', icon: 'language', color: c.success, bg: c.successBg, to: '/vocabulary' },
+  ] as const;
+
   return (
     <Screen>
-      <View style={styles.headerRow}>
-        <AppText variant="title">Learning Hub</AppText>
+      <AppText variant="title">Learn</AppText>
+      <AppText variant="small" muted style={{ marginBottom: space.md }}>
+        Courses, notes and daily reading
+      </AppText>
+
+      <View style={{ flexDirection: 'row', gap: space.sm }}>
+        {shortcuts.map((s) => (
+          <Card
+            key={s.label}
+            onPress={() => router.push(s.to)}
+            accessibilityLabel={s.label}
+            style={{ flex: 1, padding: space.md, gap: 8 }}>
+            <IconTile icon={s.icon} color={s.color} bg={s.bg} size={38} />
+            <View>
+              <Text style={{ color: c.text, fontWeight: '800', fontSize: 14 }}>{s.label}</Text>
+              <Text style={{ color: c.textMuted, fontSize: 11.5, fontWeight: '600' }} numberOfLines={1}>
+                {s.sub}
+              </Text>
+            </View>
+          </Card>
+        ))}
       </View>
 
-      {/* Compact Horizontal Feature Pills */}
-      <View style={styles.shortcutRow}>
-        <Pressable
-          onPress={() => router.push('/syllabus')}
-          style={[styles.shortcutPill, { backgroundColor: c.surface, borderColor: c.border }]}>
-          <Ionicons name="map" size={16} color={c.primary} />
-          <AppText variant="small" style={{ fontWeight: '700' }}>
-            Syllabus
-          </AppText>
-        </Pressable>
+      {!search ? (
+        <>
+          {continueCourse ? (
+            <>
+              <SectionHeader title="Continue learning" />
+              <Card
+                tone="hero"
+                onPress={() => router.push({ pathname: '/courses/[id]', params: { id: String(continueCourse.id) } })}
+                style={{ gap: space.md }}>
+                <Text style={{ color: c.heroMuted, fontSize: 12, fontWeight: '700', letterSpacing: 0.6 }}>UP NEXT</Text>
+                <Text style={{ color: c.heroText, fontSize: 18, fontWeight: '800' }} numberOfLines={2}>
+                  {continueCourse.title}
+                </Text>
+                <ProgressBar value={Number(continueCourse.progressPct ?? 0) / 100} color={c.heroText} track={c.heroSoft} />
+                <Text style={{ color: c.heroMuted, fontSize: 12.5, fontWeight: '600' }}>
+                  {Number(continueCourse.progressPct ?? 0)}% complete
+                </Text>
+              </Card>
+            </>
+          ) : null}
 
-        <Pressable
-          onPress={() => router.push('/current-affairs')}
-          style={[styles.shortcutPill, { backgroundColor: c.surface, borderColor: c.border }]}>
-          <Ionicons name="newspaper" size={16} color={c.info} />
-          <AppText variant="small" style={{ fontWeight: '700' }}>
-            Daily News
-          </AppText>
-        </Pressable>
+          {topicRows.length > 0 ? (
+            <>
+              <SectionHeader title="Syllabus progress" action="Open" onAction={() => router.push('/syllabus')} />
+              <ExamSwitcher />
+              <Card
+                onPress={() => router.push('/syllabus')}
+                style={{ flexDirection: 'row', alignItems: 'center', gap: space.lg }}>
+                <ProgressRing value={doneTopics / topicRows.length} size={72} stroke={8}>
+                  <Text style={{ color: c.text, fontWeight: '800', fontSize: 15 }}>
+                    {Math.round((doneTopics / topicRows.length) * 100)}%
+                  </Text>
+                </ProgressRing>
+                <View style={{ flex: 1, gap: 2 }}>
+                  <AppText style={{ fontWeight: '800' }}>{exam?.name ?? 'Your syllabus'}</AppText>
+                  <AppText variant="small" muted>
+                    {doneTopics} done · {learningTopics} in progress · {topicRows.length} tracked topics
+                  </AppText>
+                </View>
+              </Card>
+            </>
+          ) : null}
 
-        <Pressable
-          onPress={() => router.push('/vocabulary')}
-          style={[styles.shortcutPill, { backgroundColor: c.surface, borderColor: c.border }]}>
-          <Ionicons name="language" size={16} color={c.success} />
-          <AppText variant="small" style={{ fontWeight: '700' }}>
-            Vocab Hub
-          </AppText>
-        </Pressable>
-      </View>
+          {word ? (
+            <>
+              <SectionHeader title="Word of the day" action="Practice" onAction={() => router.push('/vocabulary')} />
+              <Card tone="soft" onPress={() => router.push('/vocabulary')} style={{ gap: 6 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <Text style={{ color: c.primary, fontSize: 22, fontWeight: '800', letterSpacing: -0.4 }}>{word.word}</Text>
+                  {word.part_of_speech ? <Badge label={word.part_of_speech} tone="primary" /> : null}
+                </View>
+                <AppText variant="small">{word.definition}</AppText>
+                {word.example_sentence ? (
+                  <AppText variant="small" muted style={{ fontStyle: 'italic' }}>
+                    “{word.example_sentence}”
+                  </AppText>
+                ) : null}
+              </Card>
+            </>
+          ) : null}
 
-      {/* Compact Search Bar */}
-      <View style={[styles.searchBox, { backgroundColor: c.surface, borderColor: c.border }]}>
-        <Ionicons name="search-outline" size={16} color={c.textMuted} />
+          {articles.length > 0 ? (
+            <>
+              <SectionHeader title="Today’s reading" action="See all" onAction={() => router.push('/current-affairs')} />
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                style={{ marginHorizontal: -16 }}
+                contentContainerStyle={{ paddingHorizontal: 16, gap: space.sm, paddingVertical: 4 }}>
+                {articles.map((a) => (
+                  <Card
+                    key={a.id}
+                    onPress={() => router.push({ pathname: '/current-affairs/[id]', params: { id: String(a.id) } })}
+                    style={{ width: 230, gap: 8, padding: space.md }}>
+                    {a.topic || a.category ? <Badge label={String(a.topic ?? a.category)} tone="info" /> : null}
+                    <AppText style={{ fontWeight: '700' }} numberOfLines={3}>
+                      {a.title}
+                    </AppText>
+                  </Card>
+                ))}
+              </ScrollView>
+            </>
+          ) : null}
+
+          <SectionHeader title="Browse library" />
+        </>
+      ) : null}
+
+      <View style={[styles.searchBox, { backgroundColor: c.surface }, elevation(c, 1)]}>
+        <Ionicons name="search" size={18} color={c.textMuted} />
         <TextInput
-          placeholder="Search courses or PDF materials..."
+          accessibilityLabel="Search courses or materials"
+          placeholder="Search courses or PDF materials"
           placeholderTextColor={c.textMuted}
           value={search}
           onChangeText={setSearch}
           style={[styles.searchInput, { color: c.text }]}
         />
         {search ? (
-          <Pressable onPress={() => setSearch('')}>
-            <Ionicons name="close-circle" size={16} color={c.textMuted} />
+          <Pressable accessibilityLabel="Clear search" onPress={() => setSearch('')} hitSlop={10}>
+            <Ionicons name="close-circle" size={18} color={c.textMuted} />
           </Pressable>
         ) : null}
       </View>
 
-      {/* Segmented Switcher */}
-      <View style={[styles.segmented, { backgroundColor: c.surface, borderColor: c.border }]}>
-        {(
-          [
-            { key: 'courses', label: 'All Courses' },
-            { key: 'enrolled', label: 'My Courses' },
-            { key: 'materials', label: 'PDF Library' },
-          ] as const
-        ).map((item) => (
-          <Pressable
-            key={item.key}
-            onPress={() => setTab(item.key)}
-            style={[styles.segmentBtn, tab === item.key ? { backgroundColor: c.primary } : null]}>
-            <AppText
-              variant="small"
-              style={{ color: tab === item.key ? c.primaryText : c.text, fontWeight: '700' }}>
-              {item.label}
-            </AppText>
-          </Pressable>
-        ))}
-      </View>
+      <Segmented
+        value={tab}
+        onChange={setTab}
+        options={[
+          { key: 'courses', label: 'Courses' },
+          { key: 'enrolled', label: 'My learning' },
+          { key: 'materials', label: 'PDFs' },
+        ]}
+      />
 
-      {/* Tab Content */}
       {tab === 'courses' ? (
         coursesQ.isLoading ? (
-          <LoadingView />
+          <ListSkeleton />
         ) : coursesQ.isError ? (
           <ErrorView message={coursesQ.error.message} onRetry={() => coursesQ.refetch()} />
         ) : (coursesQ.data?.courses ?? []).length === 0 ? (
           <EmptyView title="No courses found" message="Check back soon for new courses." />
         ) : (
-          <View style={{ gap: 6, marginTop: space.sm }}>
+          <View style={{ gap: space.sm, marginTop: space.md }}>
             {(coursesQ.data?.courses ?? []).map((course: CourseItem) => (
-              <Pressable
+              <Card
                 key={course.id}
-                onPress={() =>
-                  router.push({ pathname: '/courses/[id]', params: { id: String(course.id) } })
-                }
-                style={[styles.card, { backgroundColor: c.surface, borderColor: c.border }]}>
-                <View style={{ flex: 1, gap: 2 }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                    <AppText style={{ fontWeight: '600', flex: 1 }} numberOfLines={1}>
-                      {course.title}
-                    </AppText>
-                    <View
-                      style={[
-                        styles.badge,
-                        { backgroundColor: course.isFree ? c.successBg : c.warningBg },
-                      ]}>
-                      <AppText
-                        variant="small"
-                        style={{
-                          fontSize: 9.5,
-                          fontWeight: '700',
-                          color: course.isFree ? c.successFg : c.warningFg,
-                        }}>
-                        {course.isFree ? 'FREE' : `₹${course.price ?? 'PRO'}`}
-                      </AppText>
-                    </View>
-                  </View>
+                onPress={() => router.push({ pathname: '/courses/[id]', params: { id: String(course.id) } })}
+                style={{ flexDirection: 'row', alignItems: 'center', gap: space.md, padding: space.md }}>
+                <IconTile icon="play-circle" color={c.primary} bg={c.primarySoft} size={46} />
+                <View style={{ flex: 1, gap: 3 }}>
+                  <AppText style={{ fontWeight: '700' }} numberOfLines={2}>
+                    {course.title}
+                  </AppText>
                   <AppText variant="small" muted numberOfLines={1}>
-                    {[
-                      course.category,
-                      course.instructorFullName || course.instructorName,
-                      course.durationHours ? `${course.durationHours}h` : null,
-                    ]
+                    {[course.category, course.instructorFullName || course.instructorName, course.durationHours ? `${course.durationHours}h` : null]
                       .filter(Boolean)
                       .join(' · ')}
                   </AppText>
                 </View>
-                <Ionicons name="chevron-forward" size={16} color={c.textMuted} />
-              </Pressable>
+                <Badge label={course.isFree ? 'Free' : `₹${course.price ?? 'Pro'}`} tone={course.isFree ? 'success' : 'warning'} />
+              </Card>
             ))}
           </View>
         )
       ) : tab === 'enrolled' ? (
         enrolledQ.isLoading ? (
-          <LoadingView />
+          <ListSkeleton />
         ) : enrolledQ.isError ? (
           <ErrorView message={enrolledQ.error.message} onRetry={() => enrolledQ.refetch()} />
         ) : (enrolledQ.data ?? []).length === 0 ? (
-          <EmptyView
-            title="No Enrolled Courses Yet"
-            message="Open any free course under All Courses and tap Enroll to add it here."
-          />
+          <EmptyView title="Nothing here yet" message="Open any free course and tap Enroll to add it here." />
         ) : (
-          <View style={{ gap: 6, marginTop: space.sm }}>
-            {(enrolledQ.data ?? []).map((course: CourseItem) => (
-              <Pressable
-                key={course.id}
-                onPress={() =>
-                  router.push({ pathname: '/courses/[id]', params: { id: String(course.id) } })
-                }
-                style={[styles.card, { backgroundColor: c.surface, borderColor: c.border }]}>
-                <View style={{ flex: 1, gap: 2 }}>
-                  <AppText style={{ fontWeight: '600' }} numberOfLines={1}>
-                    {course.title}
-                  </AppText>
-                  <AppText variant="small" style={{ color: c.primary, fontWeight: '600' }}>
-                    Progress: {course.progressPct ?? 0}%
-                  </AppText>
-                </View>
-                <Ionicons name="chevron-forward" size={16} color={c.textMuted} />
-              </Pressable>
-            ))}
+          <View style={{ gap: space.sm, marginTop: space.md }}>
+            {(enrolledQ.data ?? []).map((course: CourseItem) => {
+              const pct = Number(course.progressPct ?? 0);
+              return (
+                <Card
+                  key={course.id}
+                  onPress={() => router.push({ pathname: '/courses/[id]', params: { id: String(course.id) } })}
+                  style={{ gap: space.sm }}>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: space.sm }}>
+                    <AppText style={{ fontWeight: '700', flex: 1 }} numberOfLines={2}>
+                      {course.title}
+                    </AppText>
+                    <Text style={{ color: c.primary, fontWeight: '800' }}>{pct}%</Text>
+                  </View>
+                  <ProgressBar value={pct / 100} />
+                </Card>
+              );
+            })}
           </View>
         )
       ) : materialsQ.isLoading ? (
-        <LoadingView />
+        <ListSkeleton />
       ) : materialsQ.isError ? (
         <ErrorView message={materialsQ.error.message} onRetry={() => materialsQ.refetch()} />
       ) : (materialsQ.data?.materials ?? []).length === 0 ? (
-        <EmptyView title="No study materials found" message="Try clearing your search filter." />
+        <EmptyView title="No study materials" message="Try clearing your search." />
       ) : (
-        <View style={{ gap: 6, marginTop: space.sm }}>
+        <View style={{ gap: space.sm, marginTop: space.md }}>
           {(materialsQ.data?.materials ?? []).map((mat: StudyMaterial) => (
-            <Pressable
+            <Card
               key={mat.id}
               onPress={() => handleOpenMaterial(mat)}
-              style={[styles.card, { backgroundColor: c.surface, borderColor: c.border }]}>
-              <Ionicons name="document-attach-outline" size={20} color={c.primary} />
-              <View style={{ flex: 1, gap: 1 }}>
-                <AppText style={{ fontWeight: '600' }} numberOfLines={1}>
+              style={{ flexDirection: 'row', alignItems: 'center', gap: space.md, padding: space.md }}>
+              <IconTile icon="document-text" color={c.danger} bg={c.dangerBg} size={44} />
+              <View style={{ flex: 1, gap: 2 }}>
+                <AppText style={{ fontWeight: '700' }} numberOfLines={2}>
                   {mat.title}
                 </AppText>
                 <AppText variant="small" muted numberOfLines={1}>
-                  {[mat.category, mat.subject, mat.type?.toUpperCase(), `${mat.downloadCount} dl`]
-                    .filter(Boolean)
-                    .join(' · ')}
+                  {[mat.category, mat.subject, mat.type?.toUpperCase(), `${mat.downloadCount} downloads`].filter(Boolean).join(' · ')}
                 </AppText>
               </View>
-              <View
-                style={[
-                  styles.badge,
-                  { backgroundColor: mat.isFree ? c.successBg : c.warningBg },
-                ]}>
-                <AppText
-                  variant="small"
-                  style={{
-                    fontSize: 9.5,
-                    fontWeight: '700',
-                    color: mat.isFree ? c.successFg : c.warningFg,
-                  }}>
-                  {mat.isFree ? 'OPEN' : 'PRO'}
-                </AppText>
-              </View>
-            </Pressable>
+              <Badge label={mat.isFree ? 'Open' : 'Pro'} tone={mat.isFree ? 'success' : 'warning'} />
+            </Card>
           ))}
         </View>
       )}
@@ -266,67 +339,14 @@ export default function LearnHubScreen() {
 }
 
 const styles = StyleSheet.create({
-  headerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: space.sm,
-  },
-  shortcutRow: {
-    flexDirection: 'row',
-    gap: 6,
-    marginBottom: space.sm,
-  },
-  shortcutPill: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 8,
-    paddingHorizontal: 8,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    gap: 6,
-  },
   searchBox: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderWidth: 1,
-    borderRadius: radius.md,
-    paddingHorizontal: space.sm,
-    minHeight: 38,
-    gap: 6,
-    marginBottom: space.sm,
+    borderRadius: radius.pill,
+    paddingHorizontal: space.lg,
+    height: 48,
+    gap: 8,
+    marginVertical: space.md,
   },
-  searchInput: {
-    flex: 1,
-    fontSize: 13.5,
-    paddingVertical: 4,
-  },
-  segmented: {
-    flexDirection: 'row',
-    borderRadius: radius.md,
-    borderWidth: 1,
-    padding: 3,
-  },
-  segmentBtn: {
-    flex: 1,
-    paddingVertical: 6,
-    borderRadius: radius.sm,
-    alignItems: 'center',
-  },
-  card: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: space.md,
-    paddingVertical: 8,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    gap: space.sm,
-  },
-  badge: {
-    paddingHorizontal: 6,
-    paddingVertical: 1,
-    borderRadius: 4,
-  },
+  searchInput: { flex: 1, fontSize: 15 },
 });

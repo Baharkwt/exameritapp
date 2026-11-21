@@ -1,6 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { router } from 'expo-router';
 import { useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
@@ -13,11 +12,16 @@ import {
 } from '@/api/support';
 import {
   AppText,
+  Badge,
   Button,
+  Card,
+  Chip,
   EmptyView,
   ErrorView,
   LoadingView,
   Screen,
+  ScreenHeader,
+  Segmented,
   TextField,
 } from '@/components/ui/kit';
 import { radius, space, useColors } from '@/theme';
@@ -88,79 +92,28 @@ export default function HelpScreen() {
 
   return (
     <Screen>
-      <View style={styles.topBar}>
-        <Pressable onPress={() => router.back()} style={styles.backBtn}>
-          <Ionicons name="arrow-back" size={22} color={c.text} />
-        </Pressable>
-        <View style={{ flex: 1 }}>
-          <AppText variant="heading">Help & Student Voice</AppText>
-          <AppText variant="small" muted>
-            Report issues, request mock tests, or vote on features
-          </AppText>
-        </View>
-      </View>
-
-      {/* Tabs */}
-      <View style={[styles.tabRow, { backgroundColor: c.surface, borderColor: c.border }]}>
-        {(
-          [
-            { key: 'submit', label: 'New Ticket' },
-            { key: 'tickets', label: 'My Tickets' },
-            { key: 'community', label: 'Ideas' },
-          ] as const
-        ).map((item) => {
-          const active = tab === item.key;
-          return (
-            <Pressable
-              key={item.key}
-              onPress={() => setTab(item.key)}
-              style={[styles.tabBtn, active && { backgroundColor: c.primary }]}>
-              <AppText
-                variant="small"
-                style={{
-                  fontWeight: '700',
-                  color: active ? c.primaryText : c.text,
-                }}>
-                {item.label}
-              </AppText>
-            </Pressable>
-          );
-        })}
-      </View>
+      <ScreenHeader title="Help & student voice" subtitle="Report issues, request tests, vote on ideas" />
+      <Segmented
+        value={tab}
+        onChange={setTab}
+        options={[
+          { key: 'submit', label: 'New' },
+          { key: 'tickets', label: 'My tickets' },
+          { key: 'community', label: 'Ideas' },
+        ]}
+      />
+      <View style={{ height: space.md }} />
 
       {tab === 'submit' ? (
-        <View style={[styles.card, { backgroundColor: c.surface, borderColor: c.border, gap: space.md }]}>
+        <Card style={{ gap: space.md }}>
           <View>
             <AppText variant="small" muted style={{ marginBottom: 6 }}>
               Category
             </AppText>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              <View style={{ flexDirection: 'row', gap: space.xs }}>
-                {CATEGORIES.map((cat) => {
-                  const active = category === cat.key;
-                  return (
-                    <Pressable
-                      key={cat.key}
-                      onPress={() => setCategory(cat.key)}
-                      style={[
-                        styles.chip,
-                        {
-                          backgroundColor: active ? c.primary : c.bg,
-                          borderColor: active ? c.primary : c.border,
-                        },
-                      ]}>
-                      <AppText
-                        variant="small"
-                        style={{
-                          color: active ? c.primaryText : c.text,
-                          fontWeight: '600',
-                        }}>
-                        {cat.label}
-                      </AppText>
-                    </Pressable>
-                  );
-                })}
-              </View>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -16 }} contentContainerStyle={{ paddingHorizontal: 16, gap: 8 }}>
+              {CATEGORIES.map((cat) => (
+                <Chip key={cat.key} label={cat.label} selected={category === cat.key} onPress={() => setCategory(cat.key)} />
+              ))}
             </ScrollView>
           </View>
 
@@ -201,7 +154,7 @@ export default function HelpScreen() {
             loading={submitMut.isPending}
             onPress={() => submitMut.mutate()}
           />
-        </View>
+        </Card>
       ) : tab === 'tickets' ? (
         ticketsQ.isLoading ? (
           <LoadingView />
@@ -215,22 +168,16 @@ export default function HelpScreen() {
         ) : (
           <View style={{ gap: space.sm }}>
             {tickets.map((t) => (
-              <View
-                key={t.id}
-                style={[styles.card, { backgroundColor: c.surface, borderColor: c.border }]}>
-                <View style={styles.rowBetween}>
-                  <AppText variant="small" style={{ color: c.primary, fontWeight: '700' }}>
-                    {t.ticket_number || t.category.toUpperCase()}
-                  </AppText>
-                  <AppText variant="small" muted>
-                    {t.status}
-                  </AppText>
+              <Card key={t.id} style={{ gap: 2 }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Badge label={t.ticket_number || t.category} tone="primary" />
+                  <Badge label={t.status} tone={/resolv|clos|done/i.test(t.status) ? 'success' : 'warning'} />
                 </View>
                 <AppText style={{ fontWeight: '700', marginTop: 4 }}>{t.title}</AppText>
                 <AppText variant="small" muted style={{ marginTop: 4 }}>
                   {t.description}
                 </AppText>
-              </View>
+              </Card>
             ))}
           </View>
         )
@@ -246,10 +193,8 @@ export default function HelpScreen() {
       ) : (
         <View style={{ gap: space.sm }}>
           {suggestions.map((s) => (
-            <View
-              key={s.id}
-              style={[styles.card, { backgroundColor: c.surface, borderColor: c.border }]}>
-              <View style={styles.rowBetween}>
+            <Card key={s.id}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: space.md }}>
                 <View style={{ flex: 1 }}>
                   <AppText style={{ fontWeight: '700' }}>{s.title}</AppText>
                   <AppText variant="small" muted style={{ marginTop: 2 }}>
@@ -261,8 +206,8 @@ export default function HelpScreen() {
                   style={[
                     styles.voteBox,
                     {
-                      backgroundColor: s.has_voted ? c.primary : c.bg,
-                      borderColor: s.has_voted ? c.primary : c.border,
+                      backgroundColor: s.has_voted ? c.primary : c.primarySoft,
+                      borderColor: s.has_voted ? c.primary : c.primarySoft,
                     },
                   ]}>
                   <Ionicons
@@ -280,7 +225,7 @@ export default function HelpScreen() {
                   </AppText>
                 </Pressable>
               </View>
-            </View>
+            </Card>
           ))}
         </View>
       )}

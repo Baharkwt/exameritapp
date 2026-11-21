@@ -1,14 +1,14 @@
 import { useColorScheme } from 'react-native';
 
 const light = {
-  bg: '#F4F6FA',
+  bg: '#F5F6FB',
   surface: '#FFFFFF',
   text: '#0F172A',
   textMuted: '#64748B',
-  border: '#E2E8F0',
-  primary: '#4F46E5',
+  border: '#E6E9F2',
+  primary: '#5046E5',
   primaryText: '#FFFFFF',
-  primarySoft: '#EEF2FF',
+  primarySoft: '#ECEBFF',
   danger: '#DC2626',
   dangerBg: '#FEF2F2',
   dangerFg: '#991B1B',
@@ -27,12 +27,17 @@ const light = {
   liveBg: '#FEE2E2',
   star: '#F59E0B',
   inputBg: '#FFFFFF',
-  skeleton: '#E2E8F0',
+  skeleton: '#E6E9F2',
+  hero: '#2B2A8F',
+  heroSoft: 'rgba(255,255,255,0.14)',
+  heroText: '#FFFFFF',
+  heroMuted: 'rgba(255,255,255,0.72)',
+  shadow: '#1E1B4B',
 };
 
 const dark: typeof light = {
-  bg: '#0B0F17',
-  surface: '#151C28',
+  bg: '#0A0D14',
+  surface: '#141A26',
   text: '#F1F5F9',
   textMuted: '#94A3B8',
   border: '#263042',
@@ -58,6 +63,11 @@ const dark: typeof light = {
   star: '#FBBF24',
   inputBg: '#151C28',
   skeleton: '#263042',
+  hero: '#3730A3',
+  heroSoft: 'rgba(255,255,255,0.12)',
+  heroText: '#FFFFFF',
+  heroMuted: 'rgba(255,255,255,0.7)',
+  shadow: '#000000',
 };
 
 export type AppColors = typeof light;
@@ -66,8 +76,20 @@ export function useColors(): AppColors {
   return useColorScheme() === 'dark' ? dark : light;
 }
 
-export const radius = { sm: 8, md: 12, lg: 14, xl: 20 } as const;
+export const radius = { sm: 10, md: 14, lg: 18, xl: 26, pill: 999 } as const;
 export const space = { xs: 4, sm: 8, md: 12, lg: 16, xl: 20, xxl: 24 } as const;
 
 /** Minimum comfortable touch target (iOS 44pt / Android 48dp). */
 export const TOUCH = 44;
+
+/** Soft, theme-aware elevation. Use on cards instead of hard borders. */
+export function elevation(c: AppColors, level: 1 | 2 | 3 = 1) {
+  const o = { 1: 0.06, 2: 0.1, 3: 0.16 }[level];
+  return {
+    shadowColor: c.shadow,
+    shadowOpacity: o,
+    shadowRadius: level * 8,
+    shadowOffset: { width: 0, height: level * 3 },
+    elevation: level * 2,
+  } as const;
+}

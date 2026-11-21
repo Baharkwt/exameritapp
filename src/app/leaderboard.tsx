@@ -1,12 +1,12 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
-import { router, useLocalSearchParams } from 'expo-router';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { useLocalSearchParams } from 'expo-router';
+import { Text, View } from 'react-native';
 
 import { getGlobalLeaderboard, getQuizLeaderboard } from '@/api/live';
-import { AppText, EmptyView, ErrorView, LoadingView, Screen } from '@/components/ui/kit';
+import { AppText, Card, EmptyView, ErrorView, LoadingView, Screen, ScreenHeader } from '@/components/ui/kit';
 import { useAuth } from '@/features/auth/auth-provider';
-import { radius, space, useColors } from '@/theme';
+import { space, useColors } from '@/theme';
 
 export default function LeaderboardScreen() {
   const c = useColors();
@@ -41,32 +41,18 @@ export default function LeaderboardScreen() {
 
   return (
     <Screen>
-      <View style={styles.headerRow}>
-        <Pressable onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))} hitSlop={10}>
-          <Ionicons name="arrow-back" size={24} color={c.text} />
-        </Pressable>
-        <View style={{ flex: 1 }}>
-          <AppText variant="title" style={{ fontSize: 22 }}>
-            {quizId ? 'Quiz Leaderboard' : 'All-India Leaderboard'}
-          </AppText>
-          <AppText variant="small" muted>
-            {quizId ? `Test ID: ${quizId}` : 'Ranked by total XP & active study streak'}
-          </AppText>
-        </View>
-      </View>
+      <ScreenHeader
+        title={quizId ? 'Quiz leaderboard' : 'Leaderboard'}
+        subtitle={quizId ? `Test ${quizId}` : 'Ranked by total XP and streak'}
+      />
 
-      {/* Current User Rank Banner */}
-      <View style={[styles.myRankCard, { backgroundColor: c.primary }]}>
+      <Card tone="hero" style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: space.lg }}>
         <View>
-          <AppText variant="small" style={{ color: c.primaryText, opacity: 0.85 }}>
-            YOUR CURRENT RANK
-          </AppText>
-          <AppText variant="title" style={{ color: c.primaryText }}>
-            #{userRank ?? '—'}
-          </AppText>
+          <Text style={{ color: c.heroMuted, fontSize: 12, fontWeight: '700', letterSpacing: 0.6 }}>YOUR RANK</Text>
+          <Text style={{ color: c.heroText, fontSize: 40, fontWeight: '800', letterSpacing: -1 }}>#{userRank ?? '—'}</Text>
         </View>
-        <Ionicons name="trophy" size={36} color={c.primaryText} />
-      </View>
+        <Ionicons name="trophy" size={48} color={c.star} />
+      </Card>
 
       {rows.length === 0 ? (
         <EmptyView title="No rankings yet" message="Complete quizzes and tests to climb the leaderboard." />
@@ -84,36 +70,33 @@ export default function LeaderboardScreen() {
                   : '';
 
             return (
-              <View
+              <Card
                 key={`${r.rank}-${r.id}`}
-                style={[
-                  styles.rowCard,
-                  {
-                    backgroundColor: c.surface,
-                    borderColor: isMe ? c.primary : c.border,
-                    borderWidth: isMe ? 2 : 1,
-                  },
-                ]}>
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: space.md,
+                  padding: space.md,
+                  borderWidth: isMe ? 2 : 0,
+                  borderColor: c.primary,
+                }}>
                 <View
-                  style={[
-                    styles.rankCircle,
-                    {
-                      backgroundColor:
-                        r.rank === 1
-                          ? c.warningBg
-                          : r.rank === 2
-                            ? c.border
-                            : r.rank === 3
-                              ? c.warningBg
-                              : c.bg,
-                    },
-                  ]}>
-                  <AppText variant="small" style={{ fontWeight: '700' }}>
-                    #{r.rank}
-                  </AppText>
+                  style={{
+                    width: 40,
+                    height: 40,
+                    borderRadius: 20,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    backgroundColor: r.rank <= 3 ? c.warningBg : c.skeleton,
+                  }}>
+                  {r.rank <= 3 ? (
+                    <Text style={{ fontSize: 18 }}>{['🥇', '🥈', '🥉'][r.rank - 1]}</Text>
+                  ) : (
+                    <Text style={{ color: c.textMuted, fontWeight: '800' }}>{r.rank}</Text>
+                  )}
                 </View>
                 <View style={{ flex: 1 }}>
-                  <AppText style={{ fontWeight: isMe ? '700' : '600' }}>
+                  <AppText style={{ fontWeight: '700' }} numberOfLines={1}>
                     {r.name} {isMe ? '(You)' : ''}
                   </AppText>
                   {subValue ? (
@@ -122,8 +105,8 @@ export default function LeaderboardScreen() {
                     </AppText>
                   ) : null}
                 </View>
-                <AppText style={{ fontWeight: '700', color: c.primary }}>{rightValue}</AppText>
-              </View>
+                <Text style={{ color: c.primary, fontWeight: '800' }}>{rightValue}</Text>
+              </Card>
             );
           })}
         </View>
@@ -131,35 +114,3 @@ export default function LeaderboardScreen() {
     </Screen>
   );
 }
-
-const styles = StyleSheet.create({
-  headerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space.md,
-    marginBottom: space.md,
-  },
-  myRankCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: space.lg,
-    borderRadius: radius.md,
-    marginBottom: space.lg,
-  },
-  rowCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: space.md,
-    borderRadius: radius.md,
-    gap: space.md,
-  },
-  rankCircle: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-});
-

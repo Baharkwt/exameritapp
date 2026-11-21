@@ -1,15 +1,13 @@
-import { Ionicons } from '@expo/vector-icons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { router } from 'expo-router';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
 
 import {
   getNotifications,
   markAllNotificationsRead,
   markNotificationRead,
 } from '@/api/support';
-import { AppText, EmptyView, ErrorView, LoadingView, Screen } from '@/components/ui/kit';
-import { radius, space, useColors } from '@/theme';
+import { AppText, Card, EmptyView, ErrorView, IconTile, LoadingView, Screen, ScreenHeader } from '@/components/ui/kit';
+import { space, useColors } from '@/theme';
 
 export default function NotificationsScreen() {
   const c = useColors();
@@ -40,27 +38,17 @@ export default function NotificationsScreen() {
 
   return (
     <Screen>
-      <View style={styles.topBar}>
-        <Pressable onPress={() => router.back()} style={styles.backBtn}>
-          <Ionicons name="arrow-back" size={22} color={c.text} />
-        </Pressable>
-        <View style={{ flex: 1 }}>
-          <AppText variant="heading">Notifications</AppText>
-          <AppText variant="small" muted>
-            {unread > 0 ? `${unread} unread updates` : 'All caught up'}
-          </AppText>
-        </View>
-        {unread > 0 ? (
-          <Pressable
-            onPress={() => markAllMut.mutate()}
-            disabled={markAllMut.isPending}
-            style={[styles.readAllBtn, { borderColor: c.border, backgroundColor: c.surface }]}>
-            <AppText variant="small" style={{ color: c.primary, fontWeight: '600' }}>
-              Mark all read
-            </AppText>
-          </Pressable>
-        ) : null}
-      </View>
+      <ScreenHeader
+        title="Notifications"
+        subtitle={unread > 0 ? `${unread} unread` : 'All caught up'}
+        right={
+          unread > 0 ? (
+            <Pressable accessibilityRole="button" onPress={() => markAllMut.mutate()} disabled={markAllMut.isPending} hitSlop={8}>
+              <Text style={{ color: c.primary, fontWeight: '800', fontSize: 13 }}>Mark all read</Text>
+            </Pressable>
+          ) : null
+        }
+      />
 
       {notifications.length === 0 ? (
         <EmptyView
@@ -70,80 +58,36 @@ export default function NotificationsScreen() {
       ) : (
         <View style={{ gap: space.sm }}>
           {notifications.map((n) => (
-            <Pressable
+            <Card
               key={n.id}
               onPress={() => {
-                if (!n.is_read) {
-                  markReadMut.mutate(n.id);
-                }
+                if (!n.is_read) markReadMut.mutate(n.id);
               }}
-              style={[
-                styles.card,
-                {
-                  backgroundColor: c.surface,
-                  borderColor: n.is_read ? c.border : c.primary,
-                },
-              ]}>
-              <View style={styles.rowBetween}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 }}>
-                  {!n.is_read ? (
-                    <View style={[styles.unreadDot, { backgroundColor: c.primary }]} />
-                  ) : null}
-                  <AppText style={{ fontWeight: n.is_read ? '600' : '700', flex: 1 }}>
-                    {n.title}
+              style={{ flexDirection: 'row', gap: space.md, padding: space.md, opacity: n.is_read ? 0.8 : 1 }}>
+              <IconTile
+                icon={n.is_read ? 'notifications-outline' : 'notifications'}
+                color={n.is_read ? c.textMuted : c.primary}
+                bg={n.is_read ? c.skeleton : c.primarySoft}
+                size={40}
+              />
+              <View style={{ flex: 1, gap: 2 }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: space.sm }}>
+                  <AppText style={{ fontWeight: n.is_read ? '600' : '800', flex: 1 }}>{n.title}</AppText>
+                  <AppText variant="small" muted>
+                    {new Date(n.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
                   </AppText>
                 </View>
-                <AppText variant="small" muted>
-                  {new Date(n.created_at).toLocaleDateString('en-IN', {
-                    day: 'numeric',
-                    month: 'short',
-                  })}
-                </AppText>
+                {n.body ? (
+                  <AppText variant="small" muted>
+                    {n.body}
+                  </AppText>
+                ) : null}
               </View>
-              {n.body ? (
-                <AppText variant="small" muted style={{ marginTop: 4 }}>
-                  {n.body}
-                </AppText>
-              ) : null}
-            </Pressable>
+              {!n.is_read ? <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: c.primary, marginTop: 6 }} /> : null}
+            </Card>
           ))}
         </View>
       )}
     </Screen>
   );
 }
-
-const styles = StyleSheet.create({
-  topBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space.sm,
-    marginBottom: space.md,
-  },
-  backBtn: {
-    padding: 6,
-  },
-  readAllBtn: {
-    paddingHorizontal: space.md,
-    paddingVertical: 6,
-    borderRadius: radius.sm,
-    borderWidth: 1,
-  },
-  card: {
-    padding: space.md,
-    borderRadius: radius.md,
-    borderWidth: 1,
-  },
-  rowBetween: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: space.sm,
-  },
-  unreadDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
-});
-

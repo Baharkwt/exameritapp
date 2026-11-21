@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
 
 import {
   addBookmark,
@@ -11,8 +11,8 @@ import {
   removeBookmark,
   saveReadingProgress,
 } from '@/api/learning';
-import { AppText, ErrorView, LoadingView, Screen } from '@/components/ui/kit';
-import { radius, space, useColors } from '@/theme';
+import { AppText, Badge, Card, ErrorView, LoadingView, Screen, ScreenHeader } from '@/components/ui/kit';
+import { space, useColors } from '@/theme';
 
 function stripHtml(raw?: string | null): string {
   if (!raw) return '';
@@ -59,64 +59,38 @@ export default function CurrentAffairDetailScreen() {
 
   return (
     <Screen>
-      <View style={styles.headerRow}>
-        <Pressable onPress={() => (router.canGoBack() ? router.back() : router.replace('/current-affairs'))} hitSlop={10}>
-          <Ionicons name="arrow-back" size={24} color={c.text} />
-        </Pressable>
-        <View style={{ flex: 1 }}>
-          <AppText variant="small" style={{ color: c.primary, fontWeight: '700' }}>
-            {[art.topic, art.category].filter(Boolean).join(' · ')}
-          </AppText>
-        </View>
-        <Pressable onPress={toggleBookmark} hitSlop={10}>
-          <Ionicons
-            name={isSaved ? 'bookmark' : 'bookmark-outline'}
-            size={24}
-            color={isSaved ? c.primary : c.text}
-          />
-        </Pressable>
-      </View>
+      <ScreenHeader
+        title="Article"
+        onBack={() => (router.canGoBack() ? router.back() : router.replace('/current-affairs'))}
+        right={
+          <Pressable accessibilityLabel={isSaved ? 'Remove bookmark' : 'Save article'} onPress={toggleBookmark} hitSlop={10}>
+            <Ionicons name={isSaved ? 'bookmark' : 'bookmark-outline'} size={24} color={isSaved ? c.primary : c.text} />
+          </Pressable>
+        }
+      />
 
-      <AppText variant="title" style={{ fontSize: 22, marginBottom: space.xs }}>
-        {art.title}
-      </AppText>
-      <AppText variant="small" muted style={{ marginBottom: space.md }}>
+      {art.topic || art.category ? (
+        <View style={{ marginBottom: space.sm }}>
+          <Badge label={[art.topic, art.category].filter(Boolean).join(' · ')} tone="info" />
+        </View>
+      ) : null}
+      <Text style={{ color: c.text, fontSize: 26, fontWeight: '800', letterSpacing: -0.6, lineHeight: 32 }}>{art.title}</Text>
+      <AppText variant="small" muted style={{ marginTop: space.sm, marginBottom: space.lg }}>
         {new Date(art.published_at || art.created_at).toLocaleDateString()}
-        {art.source ? ` · Source: ${art.source}` : ''}
+        {art.source ? ` · ${art.source}` : ''}
       </AppText>
 
       {art.summary ? (
-        <View style={[styles.summaryBox, { backgroundColor: c.surface, borderColor: c.border }]}>
-          <AppText style={{ fontWeight: '600' }}>{art.summary}</AppText>
-        </View>
+        <Card tone="soft" style={{ marginBottom: space.md }}>
+          <AppText style={{ fontWeight: '700' }}>{art.summary}</AppText>
+        </Card>
       ) : null}
 
-      <View style={[styles.bodyCard, { backgroundColor: c.surface, borderColor: c.border }]}>
-        <AppText style={{ lineHeight: 24 }}>
+      <Card>
+        <AppText style={{ lineHeight: 25, fontSize: 16 }}>
           {stripHtml(art.content) || art.summary || 'No additional article body.'}
         </AppText>
-      </View>
+      </Card>
     </Screen>
   );
 }
-
-const styles = StyleSheet.create({
-  headerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space.md,
-    marginBottom: space.md,
-  },
-  summaryBox: {
-    padding: space.md,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    marginBottom: space.md,
-  },
-  bodyCard: {
-    padding: space.md,
-    borderRadius: radius.md,
-    borderWidth: 1,
-  },
-});
-

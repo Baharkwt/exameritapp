@@ -35,6 +35,9 @@ import {
   submitWithRetry,
   writeLocalAttempt,
 } from '@/lib/test-attempt-storage';
+import Animated, { FadeIn, FadeOut, SlideInDown, SlideOutDown } from 'react-native-reanimated';
+
+import { haptic } from '@/lib/haptics';
 import { radius, space, useColors } from '@/theme';
 
 function formatClock(totalSeconds: number): string {
@@ -317,6 +320,7 @@ export default function TestWindowScreen() {
   const isNumerical = currentQuestion.question_type === 'numerical';
 
   function selectOption(optionId: string) {
+    haptic.select();
     const base = commitTimeOnCurrentQuestion(answersMap);
     const prev = base[currentQuestion.question_id];
     const wasMarked =
@@ -383,6 +387,7 @@ export default function TestWindowScreen() {
   }
 
   function toggleMarkForReview() {
+    haptic.light();
     const base = commitTimeOnCurrentQuestion(answersMap);
     const prev = base[currentQuestion.question_id];
     const sel = prev?.selectedAnswer ?? null;
@@ -434,6 +439,7 @@ export default function TestWindowScreen() {
   }
 
   function confirmSubmit() {
+    haptic.warning();
     const answeredCount = Object.values(answersMap).filter(
       (a) => a.answerState === 'answered' || a.answerState === 'answered_and_marked',
     ).length;
@@ -480,6 +486,12 @@ export default function TestWindowScreen() {
   }
 
   const isLowTime = remainingSec !== null && remainingSec < 300;
+  const isCritical = remainingSec !== null && remainingSec < 60;
+  const timerFg = isCritical ? c.danger : isLowTime ? c.warningFg : c.text;
+  const timerBg = isCritical ? c.dangerBg : isLowTime ? c.warningBg : c.primarySoft;
+  const answeredTotal = Object.values(answersMap).filter(
+    (a) => a.answerState === 'answered' || a.answerState === 'answered_and_marked',
+  ).length;
   const isMarked =
     currentSaved?.answerState === 'marked_for_review' ||
     currentSaved?.answerState === 'answered_and_marked';
@@ -504,14 +516,14 @@ export default function TestWindowScreen() {
         <View
           style={[
             styles.timerPill,
-            { backgroundColor: isLowTime ? c.dangerBg : c.bg, borderColor: isLowTime ? c.danger : c.border },
+            { backgroundColor: timerBg, borderColor: timerBg },
           ]}>
-          <Ionicons name="time-outline" size={16} color={isLowTime ? c.danger : c.text} />
+          <Ionicons name="time" size={16} color={timerFg} />
           <AppText
             style={{
               fontWeight: '700',
               fontVariant: ['tabular-nums'],
-              color: isLowTime ? c.danger : c.text,
+              color: timerFg,
             }}>
             {remainingSec !== null ? formatClock(remainingSec) : '--:--'}
           </AppText>
@@ -525,6 +537,16 @@ export default function TestWindowScreen() {
           style={[styles.iconBtn, { borderColor: c.border }]}>
           <Ionicons name="apps-outline" size={20} color={c.text} />
         </Pressable>
+      </View>
+
+      <View style={{ height: 3, backgroundColor: c.skeleton }}>
+        <View
+          style={{
+            height: 3,
+            width: `${(answeredTotal / Math.max(1, questions.length)) * 100}%`,
+            backgroundColor: c.success,
+          }}
+        />
       </View>
 
       {/* Section Tabs */}
@@ -735,12 +757,17 @@ export default function TestWindowScreen() {
       </View>
 
       {/* Question Palette Modal */}
-      <Modal visible={paletteOpen} animationType="slide" transparent>
-        <View style={styles.modalBackdrop}>
-          <View style={[styles.modalSheet, { backgroundColor: c.surface }]}>
+      <Modal visible={paletteOpen} animationType="none" transparent onRequestClose={() => setPaletteOpen(false)}>
+        <Animated.View entering={FadeIn.duration(180)} exiting={FadeOut.duration(150)} style={styles.modalBackdrop}>
+          <Pressable style={{ flex: 1 }} accessibilityLabel="Close palette" onPress={() => setPaletteOpen(false)} />
+          <Animated.View
+            entering={SlideInDown.springify().damping(20).stiffness(180)}
+            exiting={SlideOutDown.duration(160)}
+            style={[styles.modalSheet, { backgroundColor: c.surface }]}>
+            <View style={{ alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: c.border, marginBottom: space.sm }} />
             <View style={styles.modalHeader}>
-              <AppText variant="heading">Question Palette</AppText>
-              <Pressable onPress={() => setPaletteOpen(false)}>
+              <AppText variant="heading">Question palette</AppText>
+              <Pressable accessibilityLabel="Close" onPress={() => setPaletteOpen(false)} hitSlop={10}>
                 <Ionicons name="close" size={24} color={c.text} />
               </Pressable>
             </View>
@@ -749,22 +776,26 @@ export default function TestWindowScreen() {
             <View style={styles.legendRow}>
               <View style={styles.legendItem}>
                 <View style={[styles.dot, { backgroundColor: c.success }]} />
-                <AppText variant="small">Answered</AppText>
+                <AppText variant="small">Answered {answeredTotal}</AppText>
               </View>
               <View style={styles.legendItem}>
                 <View style={[styles.dot, { backgroundColor: c.danger }]} />
-                <AppText variant="small">Visited</AppText>
+                <AppText variant="small">
+                  Skipped {Object.values(answersMap).filter((a) => a.answerState === 'not_answered').length}
+                </AppText>
               </View>
               <View style={styles.legendItem}>
                 <View style={[styles.dot, { backgroundColor: c.marked }]} />
-                <AppText variant="small">Review</AppText>
+                <AppText variant="small">
+                  Review {Object.values(answersMap).filter((a) => a.answerState === 'marked_for_review' || a.answerState === 'answered_and_marked').length}
+                </AppText>
               </View>
             </View>
 
             <ScrollView contentContainerStyle={styles.paletteGrid}>
               {questions.map((q, idx) => {
                 const st = answersMap[q.question_id]?.answerState ?? 'not_visited';
-                let bg = c.bg;
+                let bg = c.skeleton;
                 let fg = c.text;
                 if (st === 'answered') {
                   bg = c.success;
@@ -805,8 +836,8 @@ export default function TestWindowScreen() {
                 confirmSubmit();
               }}
             />
-          </View>
-        </View>
+          </Animated.View>
+        </Animated.View>
       </Modal>
 
       {/* Report Question Modal */}
@@ -872,8 +903,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 4,
     paddingHorizontal: space.md,
-    paddingVertical: 6,
-    borderRadius: radius.md,
+    paddingVertical: 7,
+    borderRadius: radius.pill,
     borderWidth: 1,
   },
   iconBtn: {
@@ -909,16 +940,16 @@ const styles = StyleSheet.create({
     marginBottom: space.sm,
   },
   stemCard: {
-    padding: space.md,
-    borderRadius: radius.md,
+    padding: space.lg,
+    borderRadius: radius.xl,
     borderWidth: 1,
   },
   optionRow: {
     flexDirection: 'row',
     alignItems: 'center',
     padding: space.md,
-    borderRadius: radius.md,
-    borderWidth: 1,
+    borderRadius: radius.lg,
+    borderWidth: 1.5,
     gap: space.md,
   },
   optionLetter: {
@@ -955,9 +986,14 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: space.md,
-    paddingVertical: space.sm,
-    borderTopWidth: 1,
+    paddingVertical: space.md,
+    borderTopWidth: 0,
     gap: space.sm,
+    shadowColor: '#000',
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: -4 },
+    elevation: 8,
   },
   modalBackdrop: {
     flex: 1,
@@ -965,8 +1001,8 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   modalSheet: {
-    borderTopLeftRadius: radius.lg,
-    borderTopRightRadius: radius.lg,
+    borderTopLeftRadius: radius.xl,
+    borderTopRightRadius: radius.xl,
     padding: space.lg,
     maxHeight: '80%',
   },

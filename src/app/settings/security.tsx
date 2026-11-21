@@ -1,13 +1,11 @@
-import { Ionicons } from '@expo/vector-icons';
 import { useMutation } from '@tanstack/react-query';
-import { router } from 'expo-router';
 import { useState } from 'react';
-import { Alert, Pressable, StyleSheet, Switch, View } from 'react-native';
+import { Alert, StyleSheet, Switch, View } from 'react-native';
 
 import { changePassword, deactivateAccount, updatePreferences } from '@/api/support';
-import { AppText, Button, Screen, TextField } from '@/components/ui/kit';
+import { AppText, Button, Card, Screen, ScreenHeader, TextField } from '@/components/ui/kit';
 import { useAuth } from '@/features/auth/auth-provider';
-import { radius, space, useColors } from '@/theme';
+import { space, useColors } from '@/theme';
 
 export default function SecuritySettingsScreen() {
   const c = useColors();
@@ -67,20 +65,10 @@ export default function SecuritySettingsScreen() {
 
   return (
     <Screen>
-      <View style={styles.topBar}>
-        <Pressable onPress={() => router.back()} style={styles.backBtn}>
-          <Ionicons name="arrow-back" size={22} color={c.text} />
-        </Pressable>
-        <View style={{ flex: 1 }}>
-          <AppText variant="heading">Security & Preferences</AppText>
-          <AppText variant="small" muted>
-            Manage password, alerts & account status
-          </AppText>
-        </View>
-      </View>
+      <ScreenHeader title="Security & preferences" subtitle="Password, alerts and account" />
 
       {/* Preferences Card */}
-      <View style={[styles.card, { backgroundColor: c.surface, borderColor: c.border }]}>
+      <Card style={{ marginBottom: space.md }}>
         <View style={styles.rowBetween}>
           <View style={{ flex: 1 }}>
             <AppText style={{ fontWeight: '600' }}>Exam & Test Notifications</AppText>
@@ -96,11 +84,11 @@ export default function SecuritySettingsScreen() {
             }}
           />
         </View>
-      </View>
+      </Card>
 
       {/* Change Password Card */}
-      <View style={[styles.card, { backgroundColor: c.surface, borderColor: c.border, gap: space.md }]}>
-        <AppText variant="heading">Change Password</AppText>
+      <Card style={{ gap: space.md, marginBottom: space.md }}>
+        <AppText variant="heading">Change password</AppText>
         <TextField
           label="Current Password"
           placeholder="Enter current password"
@@ -128,10 +116,10 @@ export default function SecuritySettingsScreen() {
           loading={pwdMut.isPending}
           onPress={handlePasswordSubmit}
         />
-      </View>
+      </Card>
 
       {/* Danger Zone */}
-      <View style={[styles.card, { backgroundColor: c.surface, borderColor: c.danger, gap: space.sm }]}>
+      <Card style={{ gap: space.sm, borderWidth: 1.5, borderColor: c.danger }}>
         <AppText style={{ fontWeight: '700', color: c.danger }}>Deactivate Account</AppText>
         <AppText variant="small" muted>
           Deactivating your student account will disable login until reactivated by support.
@@ -155,27 +143,12 @@ export default function SecuritySettingsScreen() {
             )
           }
         />
-      </View>
+      </Card>
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  topBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space.sm,
-    marginBottom: space.md,
-  },
-  backBtn: {
-    padding: 6,
-  },
-  card: {
-    padding: space.md,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    marginBottom: space.md,
-  },
   rowBetween: {
     flexDirection: 'row',
     alignItems: 'center',

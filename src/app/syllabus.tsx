@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { Alert, Linking, Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Alert, Linking, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import {
   CanonicalTopic,
@@ -11,21 +11,33 @@ import {
   getTopicContent,
   TopicContentItem,
 } from '@/api/learning';
-import { getStudentTargets } from '@/api/student';
-import { AppText, EmptyView, ErrorView, LoadingView, Screen } from '@/components/ui/kit';
+import {
+  AppText,
+  Badge,
+  Card,
+  Chip,
+  EmptyView,
+  ErrorView,
+  IconTile,
+  LoadingView,
+  ProgressBar,
+  Screen,
+  ScreenHeader,
+  Segmented,
+} from '@/components/ui/kit';
+import { ExamSwitcher } from '@/components/ExamSwitcher';
+import { useActiveExam } from '@/features/exam/active-exam';
 import { radius, space, useColors } from '@/theme';
 
 export default function KnowYourSyllabusScreen() {
   const c = useColors();
 
-  const targetsQ = useQuery({ queryKey: ['student-targets'], queryFn: getStudentTargets });
-  const [selectedExamId, setSelectedExamId] = useState<string | null>(null);
+  const { targets, examId: activeExamId } = useActiveExam();
   const [selectedStageId, setSelectedStageId] = useState<number | null>(null);
   const [activeTopic, setActiveTopic] = useState<CanonicalTopic | null>(null);
   const [level, setLevel] = useState<'FOUNDATION' | 'CORE' | 'ADVANCED'>('CORE');
 
-  const targets = useMemo(() => targetsQ.data ?? [], [targetsQ.data]);
-  const examId = selectedExamId ?? targets[0]?.id ?? '';
+  const examId = activeExamId ?? '';
 
   const syllabusQ = useQuery({
     queryKey: ['canonical-syllabus', examId],
@@ -53,8 +65,6 @@ export default function KnowYourSyllabusScreen() {
     return map;
   }, [progressQ.data]);
 
-  if (targetsQ.isLoading) return <LoadingView />;
-
   const stages = syllabusQ.data?.stages ?? [];
   const activeStage = stages.find((s) => s.id === selectedStageId) ?? stages[0] ?? null;
 
@@ -73,19 +83,7 @@ export default function KnowYourSyllabusScreen() {
 
   return (
     <Screen>
-      <View style={styles.headerRow}>
-        <Pressable onPress={() => (router.canGoBack() ? router.back() : router.replace('/(tabs)/learn'))} hitSlop={10}>
-          <Ionicons name="arrow-back" size={24} color={c.text} />
-        </Pressable>
-        <View style={{ flex: 1 }}>
-          <AppText variant="title" style={{ fontSize: 22 }}>
-            Know Your Syllabus
-          </AppText>
-          <AppText variant="small" muted>
-            Canonical stage-wise topics & derived mastery
-          </AppText>
-        </View>
-      </View>
+      <ScreenHeader title="Syllabus" subtitle="Stage-wise topics and your mastery" onBack={() => (router.canGoBack() ? router.back() : router.replace('/(tabs)/learn'))} />
 
       {targets.length === 0 ? (
         <EmptyView
@@ -94,35 +92,7 @@ export default function KnowYourSyllabusScreen() {
         />
       ) : (
         <>
-          {/* Target Exam Picker */}
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: space.sm }}>
-            <View style={{ flexDirection: 'row', gap: space.sm }}>
-              {targets.map((t) => {
-                const active = examId === t.id;
-                return (
-                  <Pressable
-                    key={t.id}
-                    onPress={() => {
-                      setSelectedExamId(t.id);
-                      setSelectedStageId(null);
-                    }}
-                    style={[
-                      styles.chip,
-                      {
-                        backgroundColor: active ? c.primary : c.surface,
-                        borderColor: active ? c.primary : c.border,
-                      },
-                    ]}>
-                    <AppText
-                      variant="small"
-                      style={{ color: active ? c.primaryText : c.text, fontWeight: '600' }}>
-                      {t.name}
-                    </AppText>
-                  </Pressable>
-                );
-              })}
-            </View>
-          </ScrollView>
+          <ExamSwitcher />
 
           {syllabusQ.isLoading ? (
             <LoadingView />
@@ -135,42 +105,31 @@ export default function KnowYourSyllabusScreen() {
             />
           ) : (
             <>
-              {/* Stage Switcher */}
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: space.md }}>
-                <View style={{ flexDirection: 'row', gap: space.xs }}>
-                  {stages.map((st) => {
-                    const active = activeStage?.id === st.id;
-                    return (
-                      <Pressable
-                        key={st.id}
-                        onPress={() => setSelectedStageId(st.id)}
-                        style={[
-                          styles.stageChip,
-                          {
-                            backgroundColor: active ? c.primary : c.surface,
-                            borderColor: active ? c.primary : c.border,
-                          },
-                        ]}>
-                        <AppText
-                          variant="small"
-                          style={{ color: active ? c.primaryText : c.text, fontWeight: '700' }}>
-                          {st.name}
-                        </AppText>
-                      </Pressable>
-                    );
-                  })}
-                </View>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -16 }} contentContainerStyle={{ paddingHorizontal: 16, gap: 8, paddingVertical: 6 }}>
+                {stages.map((st) => (
+                  <Chip key={st.id} label={st.name} selected={activeStage?.id === st.id} onPress={() => setSelectedStageId(st.id)} />
+                ))}
               </ScrollView>
 
               {/* Subjects & Topics */}
               <View style={{ gap: space.md }}>
                 {(activeStage?.subjects ?? []).map((subj) => (
-                  <View
-                    key={subj.id}
-                    style={[styles.card, { backgroundColor: c.surface, borderColor: c.border }]}>
-                    <AppText variant="heading" style={{ marginBottom: space.sm }}>
-                      {subj.name} ({subj.topics.length} topics)
-                    </AppText>
+                  <Card key={subj.id} style={{ paddingVertical: space.md }}>
+                    <View style={{ marginBottom: space.sm, gap: 6 }}>
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                        <Text style={{ color: c.text, fontSize: 17, fontWeight: '800', flex: 1 }}>{subj.name}</Text>
+                        <Text style={{ color: c.textMuted, fontWeight: '700', fontSize: 12 }}>
+                          {subj.topics.filter((tp) => ['completed', 'mastered'].includes(progressByTopicId.get(tp.id) ?? '')).length}/{subj.topics.length}
+                        </Text>
+                      </View>
+                      <ProgressBar
+                        value={
+                          subj.topics.filter((tp) => ['completed', 'mastered'].includes(progressByTopicId.get(tp.id) ?? '')).length /
+                          Math.max(1, subj.topics.length)
+                        }
+                        color={c.success}
+                      />
+                    </View>
 
                     {subj.topics.map((top, idx) => {
                       const state = progressByTopicId.get(top.id) ?? 'not_started';
@@ -180,7 +139,7 @@ export default function KnowYourSyllabusScreen() {
                           onPress={() => setActiveTopic(top)}
                           style={[
                             styles.topicRow,
-                            idx > 0 ? { borderTopWidth: 1, borderTopColor: c.border } : null,
+                            idx > 0 ? { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.border } : null,
                           ]}>
                           <View style={{ flex: 1 }}>
                             <AppText style={{ fontWeight: '600' }}>{top.name}</AppText>
@@ -193,37 +152,14 @@ export default function KnowYourSyllabusScreen() {
                                 .join(' · ') || 'Tap to view learning resources'}
                             </AppText>
                           </View>
-                          <View
-                            style={[
-                              styles.stateBadge,
-                              {
-                                backgroundColor:
-                                  state === 'completed' || state === 'mastered'
-                                    ? c.successBg
-                                    : state === 'learning'
-                                      ? c.infoBg
-                                      : c.bg,
-                              },
-                            ]}>
-                            <AppText
-                              variant="small"
-                              style={{
-                                fontSize: 11,
-                                fontWeight: '700',
-                                color:
-                                  state === 'completed' || state === 'mastered'
-                                    ? c.successFg
-                                    : state === 'learning'
-                                      ? c.infoFg
-                                      : c.textMuted,
-                              }}>
-                              {state.replace('_', ' ').toUpperCase()}
-                            </AppText>
-                          </View>
+                          <Badge
+                            label={state.replace('_', ' ')}
+                            tone={state === 'completed' || state === 'mastered' ? 'success' : state === 'learning' ? 'info' : 'muted'}
+                          />
                         </Pressable>
                       );
                     })}
-                  </View>
+                  </Card>
                 ))}
               </View>
             </>
@@ -236,36 +172,24 @@ export default function KnowYourSyllabusScreen() {
         <View style={styles.modalBackdrop}>
           <View style={[styles.modalSheet, { backgroundColor: c.surface }]}>
             <View style={styles.modalHeader}>
-              <AppText variant="heading" style={{ flex: 1 }}>
+              <Text style={{ color: c.text, fontSize: 19, fontWeight: '800', flex: 1, letterSpacing: -0.3 }}>
                 {activeTopic?.name}
-              </AppText>
-              <Pressable onPress={() => setActiveTopic(null)}>
+              </Text>
+              <Pressable accessibilityLabel="Close" onPress={() => setActiveTopic(null)} hitSlop={10}>
                 <Ionicons name="close" size={24} color={c.text} />
               </Pressable>
             </View>
 
-            {/* Level Selector (FOUNDATION / CORE / ADVANCED) */}
-            <View style={{ flexDirection: 'row', gap: space.xs, marginVertical: space.sm }}>
-              {(['FOUNDATION', 'CORE', 'ADVANCED'] as const).map((lvl) => (
-                <Pressable
-                  key={lvl}
-                  onPress={() => setLevel(lvl)}
-                  style={[
-                    styles.stageChip,
-                    {
-                      flex: 1,
-                      alignItems: 'center',
-                      backgroundColor: level === lvl ? c.primary : c.bg,
-                      borderColor: level === lvl ? c.primary : c.border,
-                    },
-                  ]}>
-                  <AppText
-                    variant="small"
-                    style={{ color: level === lvl ? c.primaryText : c.text, fontWeight: '700' }}>
-                    {lvl}
-                  </AppText>
-                </Pressable>
-              ))}
+            <View style={{ marginVertical: space.md }}>
+              <Segmented
+                value={level}
+                onChange={setLevel}
+                options={[
+                  { key: 'FOUNDATION', label: 'Foundation' },
+                  { key: 'CORE', label: 'Core' },
+                  { key: 'ADVANCED', label: 'Advanced' },
+                ]}
+              />
             </View>
 
             {topicContentQ.isLoading ? (
@@ -281,17 +205,12 @@ export default function KnowYourSyllabusScreen() {
                   <Pressable
                     key={`${item.type}-${i}`}
                     onPress={() => openContentItem(item)}
-                    style={[styles.topicRow, { borderBottomWidth: 1, borderBottomColor: c.border }]}>
-                    <Ionicons
-                      name={
-                        item.type === 'TEST'
-                          ? 'document-text-outline'
-                          : item.type === 'PDF'
-                            ? 'document-attach-outline'
-                            : 'play-circle-outline'
-                      }
-                      size={22}
+                    style={styles.topicRow}>
+                    <IconTile
+                      icon={item.type === 'TEST' ? 'document-text' : item.type === 'PDF' ? 'document-attach' : 'play-circle'}
                       color={c.primary}
+                      bg={c.primarySoft}
+                      size={38}
                     />
                     <View style={{ flex: 1, marginLeft: space.sm }}>
                       <AppText style={{ fontWeight: '600' }}>{item.title}</AppText>
@@ -314,29 +233,6 @@ export default function KnowYourSyllabusScreen() {
 }
 
 const styles = StyleSheet.create({
-  headerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space.md,
-    marginBottom: space.md,
-  },
-  chip: {
-    paddingHorizontal: space.md,
-    paddingVertical: space.sm,
-    borderRadius: radius.md,
-    borderWidth: 1,
-  },
-  stageChip: {
-    paddingHorizontal: space.md,
-    paddingVertical: 6,
-    borderRadius: radius.sm,
-    borderWidth: 1,
-  },
-  card: {
-    padding: space.md,
-    borderRadius: radius.md,
-    borderWidth: 1,
-  },
   topicRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -344,19 +240,14 @@ const styles = StyleSheet.create({
     paddingVertical: space.sm,
     gap: space.sm,
   },
-  stateBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-  },
   modalBackdrop: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.5)',
     justifyContent: 'flex-end',
   },
   modalSheet: {
-    borderTopLeftRadius: radius.lg,
-    borderTopRightRadius: radius.lg,
+    borderTopLeftRadius: radius.xl,
+    borderTopRightRadius: radius.xl,
     padding: space.lg,
     minHeight: 340,
     maxHeight: '80%',

@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { View } from 'react-native';
 
 import { toApiError } from '@/api/client';
-import { AppText, Button, ErrorBanner, Screen, TextField } from '@/components/ui/kit';
+import { AppText, AuthHeader, Button, ErrorBanner, Screen, TextField } from '@/components/ui/kit';
 import { useAuth } from '@/features/auth/auth-provider';
 import { space, useColors } from '@/theme';
 
@@ -48,10 +48,7 @@ export default function Register() {
 
   return (
     <Screen style={{ justifyContent: 'center' }}>
-      <View style={{ marginBottom: space.xl }}>
-        <AppText variant="title">Create account</AppText>
-        <AppText muted>Join Examerit and start practising</AppText>
-      </View>
+      <AuthHeader title="Create account" subtitle="Join Examerit and start practising today." />
       {error ? <ErrorBanner message={error} /> : null}
       <TextField label="Full name" value={name} onChangeText={setName} autoComplete="name" error={errs.name} />
       <TextField
@@ -84,7 +81,7 @@ export default function Register() {
       <View style={{ flexDirection: 'row', justifyContent: 'center', marginTop: space.lg, gap: 6 }}>
         <AppText muted>Already registered?</AppText>
         <Link href="/login">
-          <AppText style={{ color: c.primary, fontWeight: '600' }}>Sign in</AppText>
+          <AppText style={{ color: c.primary, fontWeight: '800' }}>Sign in</AppText>
         </Link>
       </View>
     </Screen>

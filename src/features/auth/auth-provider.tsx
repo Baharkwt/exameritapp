@@ -90,7 +90,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signIn = useCallback(async (b: LoginBody) => accept(await authApi.login(b)), [accept]);
   const signUp = useCallback(async (b: RegisterBody) => accept(await authApi.register(b)), [accept]);
   const signOut = useCallback(async () => {
-    await clearToken(); // there is no logout endpoint: logout = delete the token
+    try {
+      await authApi.logout(); // must run before the token is cleared (needs the Bearer header)
+    } catch {
+      // offline / already-expired token: still sign out locally
+    }
+    await clearToken();
     reset();
   }, [reset]);
 

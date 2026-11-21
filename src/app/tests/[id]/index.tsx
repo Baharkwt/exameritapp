@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { toApiError } from '@/api/client';
 import { upsertLiveTestRegistration } from '@/api/live';
@@ -13,7 +13,7 @@ import {
   getTestSections,
   startTestAttempt,
 } from '@/api/tests';
-import { AppText, Button, ErrorBanner, ErrorView, LoadingView, Screen } from '@/components/ui/kit';
+import { AppText, Badge, Button, Card, ErrorBanner, ErrorView, IconTile, LoadingView, Screen, SectionHeader } from '@/components/ui/kit';
 import { recordServerTime } from '@/lib/clock';
 import { radius, space, useColors } from '@/theme';
 
@@ -112,113 +112,109 @@ export default function TestIntroScreen() {
     });
   }
 
+  const stats = [
+    { icon: 'help-circle', label: 'Questions', value: String(meta.total_questions) },
+    { icon: 'time', label: 'Minutes', value: String(meta.duration_minutes) },
+    { icon: 'ribbon', label: 'Marks', value: String(meta.max_score) },
+  ] as const;
+
   return (
     <Screen>
-      {/* Top Bar */}
-      <View style={styles.headerRow}>
-        <Pressable onPress={() => (router.canGoBack() ? router.back() : router.replace('/(tabs)/tests'))} hitSlop={10}>
-          <Ionicons name="arrow-back" size={24} color={c.text} />
-        </Pressable>
-        <View style={{ flex: 1 }}>
-          <AppText variant="title" style={{ fontSize: 21 }}>
-            {meta.name}
-          </AppText>
-          <AppText variant="small" muted>
-            {[meta.category_name, meta.stage_name, meta.format_label || meta.subject_label]
-              .filter(Boolean)
-              .join(' · ')}
-          </AppText>
-        </View>
-      </View>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Go back"
+        onPress={() => (router.canGoBack() ? router.back() : router.replace('/(tabs)/tests'))}
+        hitSlop={10}
+        style={{ marginBottom: space.md, alignSelf: 'flex-start' }}>
+        <Ionicons name="arrow-back" size={24} color={c.text} />
+      </Pressable>
 
-      {error ? <ErrorBanner message={error} /> : null}
-      {startsAtGate ? (
-        <View style={[styles.card, { backgroundColor: c.surface, borderColor: c.primary }]}>
-          <AppText style={{ fontWeight: '700', color: c.primary }}>
-            ⏰ Live Session Scheduled
-          </AppText>
-          <AppText variant="small" muted>
-            Opens on {new Date(startsAtGate).toLocaleString()}
-          </AppText>
+      <Card tone="hero" style={{ gap: space.sm, marginBottom: space.md }}>
+        <View style={{ flexDirection: 'row', gap: 6 }}>
+          {meta.access_tier ? (
+            <Badge label={meta.access_tier === 'free' ? 'Free' : 'Pro'} tone={meta.access_tier === 'free' ? 'success' : 'warning'} />
+          ) : null}
+          {meta.difficulty ? <Badge label={String(meta.difficulty)} tone="info" /> : null}
         </View>
-      ) : null}
-
-      {/* Summary Stats */}
-      <View style={styles.statsRow}>
-        <View style={[styles.statCard, { backgroundColor: c.surface, borderColor: c.border }]}>
-          <AppText variant="small" muted>
-            Questions
-          </AppText>
-          <AppText variant="heading">{meta.total_questions}</AppText>
-        </View>
-        <View style={[styles.statCard, { backgroundColor: c.surface, borderColor: c.border }]}>
-          <AppText variant="small" muted>
-            Duration
-          </AppText>
-          <AppText variant="heading">{meta.duration_minutes} mins</AppText>
-        </View>
-        <View style={[styles.statCard, { backgroundColor: c.surface, borderColor: c.border }]}>
-          <AppText variant="small" muted>
-            Max Marks
-          </AppText>
-          <AppText variant="heading">{meta.max_score}</AppText>
-        </View>
-      </View>
-
-      {/* Sections Breakdown */}
-      {sections.length > 0 ? (
-        <View style={[styles.card, { backgroundColor: c.surface, borderColor: c.border }]}>
-          <AppText variant="heading" style={{ marginBottom: space.sm }}>
-            Paper Sections ({sections.length})
-          </AppText>
-          {sections.map((sec, idx) => (
-            <View
-              key={sec.section_key}
-              style={[
-                styles.sectionRow,
-                idx > 0 ? { borderTopWidth: 1, borderTopColor: c.border } : null,
-              ]}>
-              <AppText style={{ fontWeight: '600', flex: 1 }}>
-                {idx + 1}. {sec.name}
-              </AppText>
-              {sec.duration_minutes ? (
-                <AppText variant="small" muted>
-                  {sec.duration_minutes} mins
-                </AppText>
-              ) : null}
+        <Text style={{ color: c.heroText, fontSize: 22, fontWeight: '800', letterSpacing: -0.4 }}>{meta.name}</Text>
+        <Text style={{ color: c.heroMuted, fontSize: 13, fontWeight: '600' }}>
+          {[meta.category_name, meta.stage_name, meta.format_label || meta.subject_label].filter(Boolean).join(' · ')}
+        </Text>
+        <View style={{ flexDirection: 'row', gap: space.sm, marginTop: space.sm }}>
+          {stats.map((s) => (
+            <View key={s.label} style={[styles.heroStat, { backgroundColor: c.heroSoft }]}>
+              <Ionicons name={s.icon} size={16} color={c.heroMuted} />
+              <Text style={{ color: c.heroText, fontSize: 18, fontWeight: '800', marginTop: 4 }}>{s.value}</Text>
+              <Text style={{ color: c.heroMuted, fontSize: 11, fontWeight: '600' }}>{s.label}</Text>
             </View>
           ))}
         </View>
+      </Card>
+
+      {error ? <ErrorBanner message={error} /> : null}
+      {startsAtGate ? (
+        <Card tone="soft" style={{ marginBottom: space.md, flexDirection: 'row', gap: space.md, alignItems: 'center' }}>
+          <IconTile icon="alarm" color={c.primary} bg={c.surface} size={40} />
+          <View style={{ flex: 1 }}>
+            <AppText style={{ fontWeight: '800' }}>Live session scheduled</AppText>
+            <AppText variant="small" muted>
+              Opens {new Date(startsAtGate).toLocaleString()}
+            </AppText>
+          </View>
+        </Card>
       ) : null}
 
-      {/* Instructions Card */}
-      <View style={[styles.card, { backgroundColor: c.surface, borderColor: c.border }]}>
-        <AppText variant="heading" style={{ marginBottom: space.sm }}>
-          Exam Instructions
-        </AppText>
-        <View style={{ gap: 6 }}>
-          <AppText variant="small" muted>
-            • The timer is synchronized with the server clock. When the time reaches 00:00, your test will auto-submit.
-          </AppText>
-          <AppText variant="small" muted>
-            • Your answers are automatically saved on your device and synced to the server, so you can safely resume if your connection drops.
-          </AppText>
-          <AppText variant="small" muted>
-            • Use &quot;Mark for Review&quot; if you want to revisit a question before final submission.
-          </AppText>
-          {meta.official_cutoff ? (
-            <AppText variant="small" style={{ color: c.primary, fontWeight: '600', marginTop: 4 }}>
-              Official Qualifying Cutoff: {meta.official_cutoff} marks
+      {sections.length > 0 ? (
+        <>
+          <SectionHeader title={`Sections · ${sections.length}`} />
+          <Card style={{ paddingVertical: space.sm }}>
+            {sections.map((sec, idx) => (
+              <View
+                key={sec.section_key}
+                style={[styles.sectionRow, idx > 0 ? { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.border } : null]}>
+                <View style={[styles.num, { backgroundColor: c.primarySoft }]}>
+                  <Text style={{ color: c.primary, fontWeight: '800', fontSize: 12 }}>{idx + 1}</Text>
+                </View>
+                <AppText style={{ fontWeight: '600', flex: 1 }}>{sec.name}</AppText>
+                {sec.duration_minutes ? (
+                  <AppText variant="small" muted>
+                    {sec.duration_minutes} min
+                  </AppText>
+                ) : null}
+              </View>
+            ))}
+          </Card>
+        </>
+      ) : null}
+
+      <SectionHeader title="Before you begin" />
+      <Card style={{ gap: space.md }}>
+        {(
+          [
+            ['timer', 'Timer follows the server clock and auto-submits at 00:00.'],
+            ['cloud-done', 'Answers autosave, so you can resume if your connection drops.'],
+            ['flag', 'Mark questions for review and revisit them from the palette.'],
+          ] as const
+        ).map(([icon, text]) => (
+          <View key={icon} style={{ flexDirection: 'row', gap: space.md, alignItems: 'center' }}>
+            <Ionicons name={icon} size={18} color={c.primary} />
+            <AppText variant="small" muted style={{ flex: 1 }}>
+              {text}
             </AppText>
-          ) : null}
-        </View>
-      </View>
+          </View>
+        ))}
+        {meta.official_cutoff ? (
+          <AppText variant="small" style={{ color: c.primary, fontWeight: '700' }}>
+            Official qualifying cutoff: {meta.official_cutoff} marks
+          </AppText>
+        ) : null}
+      </Card>
 
       {/* Previous Attempt Banner */}
       {lastAttempt?.status === 'submitted' ? (
-        <View style={[styles.card, { backgroundColor: c.surface, borderColor: c.border }]}>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-            <View>
+        <Card style={{ marginTop: space.md }}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: space.sm }}>
+            <View style={{ flex: 1 }}>
               <AppText style={{ fontWeight: '700' }}>
                  Attempt #{lastAttempt.attemptNumber} Completed
               </AppText>
@@ -232,7 +228,7 @@ export default function TestIntroScreen() {
               onPress={() => handleViewResult(lastAttempt.attemptId)}
             />
           </View>
-        </View>
+        </Card>
       ) : null}
 
       {/* Action CTA */}
@@ -263,30 +259,8 @@ export default function TestIntroScreen() {
 }
 
 const styles = StyleSheet.create({
-  headerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space.md,
-    marginBottom: space.lg,
-  },
-  statsRow: {
-    flexDirection: 'row',
-    gap: space.sm,
-    marginBottom: space.md,
-  },
-  statCard: {
-    flex: 1,
-    padding: space.md,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    alignItems: 'center',
-  },
-  card: {
-    padding: space.md,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    marginBottom: space.md,
-  },
+  heroStat: { flex: 1, padding: space.md, borderRadius: radius.md },
+  num: { width: 26, height: 26, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
   sectionRow: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Pressable, ScrollView, View } from 'react-native';
 
 import {
   addBookmark,
@@ -12,8 +12,9 @@ import {
   getCurrentAffairTopics,
   removeBookmark,
 } from '@/api/learning';
-import { AppText, EmptyView, ErrorView, LoadingView, Screen } from '@/components/ui/kit';
-import { radius, space, useColors } from '@/theme';
+import { AppText, Badge, Card, Chip, EmptyView, ErrorView, LoadingView, Screen, ScreenHeader } from '@/components/ui/kit';
+import { haptic } from '@/lib/haptics';
+import { space, useColors } from '@/theme';
 
 export default function CurrentAffairsListScreen() {
   const c = useColors();
@@ -60,80 +61,34 @@ export default function CurrentAffairsListScreen() {
 
   return (
     <Screen>
-      <View style={styles.headerRow}>
-        <Pressable onPress={() => (router.canGoBack() ? router.back() : router.replace('/(tabs)/learn'))} hitSlop={10}>
-          <Ionicons name="arrow-back" size={24} color={c.text} />
-        </Pressable>
-        <View style={{ flex: 1 }}>
-          <AppText variant="title" style={{ fontSize: 22 }}>
-            Current Affairs & News
-          </AppText>
-          <AppText variant="small" muted>
-            Daily exam-relevant updates & saved bookmarks
-          </AppText>
-        </View>
-      </View>
+      <ScreenHeader
+        title="Daily news"
+        subtitle="Exam-relevant updates and saved articles"
+        onBack={() => (router.canGoBack() ? router.back() : router.replace('/(tabs)/learn'))}
+      />
 
-      {/* Topic & Saved Filter Chips */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: space.md }}>
-        <View style={{ flexDirection: 'row', gap: space.xs }}>
-          <Pressable
-            onPress={() => {
-              setSelectedTopic(undefined);
-              setOnlySaved(false);
-            }}
-            style={[
-              styles.chip,
-              {
-                backgroundColor: !selectedTopic && !onlySaved ? c.primary : c.surface,
-                borderColor: c.border,
-              },
-            ]}>
-            <AppText
-              variant="small"
-              style={{ color: !selectedTopic && !onlySaved ? c.primaryText : c.text, fontWeight: '600' }}>
-              All News
-            </AppText>
-          </Pressable>
-
-          <Pressable
-            onPress={() => setOnlySaved(!onlySaved)}
-            style={[
-              styles.chip,
-              {
-                backgroundColor: onlySaved ? c.primary : c.surface,
-                borderColor: c.border,
-              },
-            ]}>
-            <AppText
-              variant="small"
-              style={{ color: onlySaved ? c.primaryText : c.text, fontWeight: '600' }}>
-              ★ Saved ({bookmarkedIds.size})
-            </AppText>
-          </Pressable>
-
-          {(topicsQ.data ?? []).map((t) => {
-            const active = selectedTopic === t.topic;
-            return (
-              <Pressable
-                key={t.topic}
-                onPress={() => setSelectedTopic(active ? undefined : t.topic)}
-                style={[
-                  styles.chip,
-                  {
-                    backgroundColor: active ? c.primary : c.surface,
-                    borderColor: c.border,
-                  },
-                ]}>
-                <AppText
-                  variant="small"
-                  style={{ color: active ? c.primaryText : c.text }}>
-                  {t.topic} ({t.count})
-                </AppText>
-              </Pressable>
-            );
-          })}
-        </View>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={{ marginHorizontal: -16 }}
+        contentContainerStyle={{ paddingHorizontal: 16, gap: 8, paddingVertical: 6, marginBottom: space.sm }}>
+        <Chip
+          label="All news"
+          selected={!selectedTopic && !onlySaved}
+          onPress={() => {
+            setSelectedTopic(undefined);
+            setOnlySaved(false);
+          }}
+        />
+        <Chip label={`Saved · ${bookmarkedIds.size}`} icon="bookmark" selected={onlySaved} onPress={() => setOnlySaved(!onlySaved)} />
+        {(topicsQ.data ?? []).map((t) => (
+          <Chip
+            key={t.topic}
+            label={`${t.topic} · ${t.count}`}
+            selected={selectedTopic === t.topic}
+            onPress={() => setSelectedTopic(selectedTopic === t.topic ? undefined : t.topic)}
+          />
+        ))}
       </ScrollView>
 
       {articlesQ.isLoading ? (
@@ -147,21 +102,17 @@ export default function CurrentAffairsListScreen() {
           {displayedArticles.map((art: CurrentAffairArticle) => {
             const isSaved = bookmarkedIds.has(String(art.id));
             return (
-              <Pressable
+              <Card
                 key={art.id}
-                onPress={() =>
-                  router.push({
-                    pathname: '/current-affairs/[id]',
-                    params: { id: String(art.id) },
-                  })
-                }
-                style={[styles.card, { backgroundColor: c.surface, borderColor: c.border }]}>
-                <View style={{ flex: 1, gap: 4 }}>
-                  <AppText variant="small" style={{ color: c.primary, fontWeight: '700' }}>
-                    {[art.topic, art.category, new Date(art.created_at).toLocaleDateString()]
-                      .filter(Boolean)
-                      .join(' · ')}
-                  </AppText>
+                onPress={() => router.push({ pathname: '/current-affairs/[id]', params: { id: String(art.id) } })}
+                style={{ flexDirection: 'row', alignItems: 'flex-start', gap: space.md, padding: space.md }}>
+                <View style={{ flex: 1, gap: 6 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    {art.topic || art.category ? <Badge label={String(art.topic ?? art.category)} tone="info" /> : null}
+                    <AppText variant="small" muted>
+                      {new Date(art.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+                    </AppText>
+                  </View>
                   <AppText style={{ fontWeight: '700' }}>{art.title}</AppText>
                   {art.summary ? (
                     <AppText variant="small" muted numberOfLines={2}>
@@ -170,18 +121,16 @@ export default function CurrentAffairsListScreen() {
                   ) : null}
                 </View>
                 <Pressable
+                  accessibilityLabel={isSaved ? 'Remove bookmark' : 'Save article'}
                   onPress={(e) => {
                     e.stopPropagation();
+                    haptic.light();
                     toggleBookmark(art.id);
                   }}
                   hitSlop={10}>
-                  <Ionicons
-                    name={isSaved ? 'bookmark' : 'bookmark-outline'}
-                    size={22}
-                    color={isSaved ? c.primary : c.textMuted}
-                  />
+                  <Ionicons name={isSaved ? 'bookmark' : 'bookmark-outline'} size={22} color={isSaved ? c.primary : c.textMuted} />
                 </Pressable>
-              </Pressable>
+              </Card>
             );
           })}
         </View>
@@ -189,27 +138,3 @@ export default function CurrentAffairsListScreen() {
     </Screen>
   );
 }
-
-const styles = StyleSheet.create({
-  headerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space.md,
-    marginBottom: space.md,
-  },
-  chip: {
-    paddingHorizontal: space.md,
-    paddingVertical: 6,
-    borderRadius: radius.sm,
-    borderWidth: 1,
-  },
-  card: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    padding: space.md,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    gap: space.md,
-  },
-});
-

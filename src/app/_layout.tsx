@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { AuthProvider, useAuth } from '@/features/auth/auth-provider';
+import { ActiveExamProvider } from '@/features/exam/active-exam';
 import { ApiError } from '@/api/client';
 
 SplashScreen.preventAutoHideAsync();
@@ -72,8 +73,10 @@ export default function RootLayout() {
     <SafeAreaProvider>
       <QueryClientProvider client={client}>
         <AuthProvider>
-          <StatusBar style="auto" />
-          <RootStack />
+          <ActiveExamProvider>
+            <StatusBar style="auto" />
+            <RootStack />
+          </ActiveExamProvider>
         </AuthProvider>
       </QueryClientProvider>
     </SafeAreaProvider>

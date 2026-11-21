@@ -47,3 +47,8 @@ export async function register(body: RegisterBody): Promise<AuthResponse> {
   }
 }
 
+
+/** Invalidate the session server-side. Best-effort: callers should still clear local state on failure. */
+export async function logout(): Promise<void> {
+  await api.post('/auth/logout');
+}

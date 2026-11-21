@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { getCategories, getExams } from '@/api/catalog';
 import { toApiError } from '@/api/client';
@@ -14,7 +14,8 @@ import {
   replaceStudentCategories,
 } from '@/api/student';
 import { getMe, PreparationLevel, updateMe } from '@/api/users';
-import { AppText, Button, ErrorBanner, ErrorView, LoadingView, Screen, TextField } from '@/components/ui/kit';
+import { AppText, Button, Card, Chip, ErrorBanner, ErrorView, LoadingView, Screen, TextField } from '@/components/ui/kit';
+import { haptic } from '@/lib/haptics';
 import { radius, space, useColors } from '@/theme';
 
 const PREP_LEVELS: { key: PreparationLevel; label: string; desc: string }[] = [
@@ -45,6 +46,18 @@ const POPULAR_STATES = [
 
 function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
+}
+
+function StepTitle({ n, title }: { n: number; title: string }) {
+  const c = useColors();
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm, marginTop: space.xl, marginBottom: space.sm }}>
+      <View style={{ width: 26, height: 26, borderRadius: 13, backgroundColor: c.primary, alignItems: 'center', justifyContent: 'center' }}>
+        <Text style={{ color: c.primaryText, fontWeight: '800', fontSize: 13 }}>{n}</Text>
+      </View>
+      <Text style={{ color: c.text, fontSize: 17, fontWeight: '800', letterSpacing: -0.2 }}>{title}</Text>
+    </View>
+  );
 }
 
 export default function OnboardingScreen() {
@@ -218,125 +231,94 @@ export default function OnboardingScreen() {
       {error ? <ErrorBanner message={error} /> : null}
 
       {/* Step 1: Categories */}
-      <AppText variant="heading" style={styles.sectionTitle}>
-        1. Exam Categories ({selectedCats.length} selected)
-      </AppText>
+      <StepTitle n={1} title={`Exam Categories (${selectedCats.length} selected)`} />
       <View style={styles.chipGrid}>
-        {availableCategories.map((cat) => {
-          const active = selectedCats.includes(cat.id);
-          return (
-            <Pressable
-              key={cat.id}
-              onPress={() => toggleCategory(cat.id)}
-              style={[
-                styles.chip,
-                {
-                  backgroundColor: active ? c.primary : c.surface,
-                  borderColor: active ? c.primary : c.border,
-                },
-              ]}>
-              <AppText
-                variant="small"
-                style={{ color: active ? c.primaryText : c.text, fontWeight: '600' }}>
-                {cat.name} ({cat.exam_count})
-              </AppText>
-            </Pressable>
-          );
-        })}
+        {availableCategories.map((cat) => (
+          <Chip
+            key={cat.id}
+            label={`${cat.name} · ${cat.exam_count}`}
+            selected={selectedCats.includes(cat.id)}
+            onPress={() => {
+              haptic.select();
+              toggleCategory(cat.id);
+            }}
+          />
+        ))}
       </View>
 
       {/* Step 2: Target Exams */}
-      <AppText variant="heading" style={styles.sectionTitle}>
-        2. Target Exams ({selectedTargets.length}/3 — first is Primary)
-      </AppText>
+      <StepTitle n={2} title={`Target Exams (${selectedTargets.length}/3 — first is Primary)`} />
       {selectedTargets.length > 0 ? (
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space.sm, marginBottom: space.sm }}>
           {selectedTargets.map((t, idx) => (
-            <Pressable
+            <Chip
               key={t.examId}
+              label={`${idx === 0 ? '★ ' : `${idx + 1}. `}${t.name}`}
+              icon="close-circle"
+              selected
               onPress={() => toggleTarget({ id: t.examId, name: t.name, category_id: t.categoryId })}
-              style={[
-                styles.chip,
-                { backgroundColor: c.primary, borderColor: c.primary, flexDirection: 'row', gap: 6 },
-              ]}>
-              <AppText variant="small" style={{ color: c.primaryText, fontWeight: '700' }}>
-                {idx === 0 ? '★ ' : `${idx + 1}. `}
-                {t.name}
-              </AppText>
-              <Ionicons name="close-circle" size={16} color={c.primaryText} />
-            </Pressable>
+            />
           ))}
         </View>
       ) : null}
 
       <ScrollView
         horizontal={false}
-        style={[styles.examPickerBox, { backgroundColor: c.surface, borderColor: c.border }]}
+        style={[styles.examPickerBox, { backgroundColor: c.primarySoft }]}
         nestedScrollEnabled>
         <View style={styles.chipGrid}>
-          {examsForSelectedCategories.slice(0, 60).map((exam) => {
-            const active = selectedTargets.some((t) => t.examId === exam.id);
-            return (
-              <Pressable
-                key={`${exam.category_id ?? 'all'}-${exam.id}`}
-                onPress={() => toggleTarget(exam)}
-                style={[
-                  styles.chip,
-                  {
-                    backgroundColor: active ? c.primary : c.bg,
-                    borderColor: active ? c.primary : c.border,
-                  },
-                ]}>
-                <AppText
-                  variant="small"
-                  style={{ color: active ? c.primaryText : c.text, fontWeight: active ? '700' : '500' }}>
-                  {exam.name}
-                </AppText>
-              </Pressable>
-            );
-          })}
+          {examsForSelectedCategories.slice(0, 60).map((exam) => (
+            <Chip
+              key={`${exam.category_id ?? 'all'}-${exam.id}`}
+              label={exam.name}
+              selected={selectedTargets.some((t) => t.examId === exam.id)}
+              onPress={() => {
+                haptic.select();
+                toggleTarget(exam);
+              }}
+            />
+          ))}
         </View>
       </ScrollView>
 
       {/* Step 3: Preparation Level */}
-      <AppText variant="heading" style={styles.sectionTitle}>
-        3. Preparation Stage
-      </AppText>
+      <StepTitle n={3} title={`Preparation Stage`} />
       <View style={{ gap: space.sm }}>
         {PREP_LEVELS.map((lvl) => {
           const active = prepLevel === lvl.key;
           return (
-            <Pressable
+            <Card
               key={lvl.key}
-              onPress={() => setPrepLevelOverride(lvl.key)}
-              style={[
-                styles.levelCard,
-                {
-                  backgroundColor: c.surface,
-                  borderColor: active ? c.primary : c.border,
-                  borderWidth: active ? 2 : 1,
-                },
-              ]}>
+              onPress={() => {
+                haptic.select();
+                setPrepLevelOverride(lvl.key);
+              }}
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: space.sm,
+                padding: space.md,
+                borderWidth: 2,
+                borderColor: active ? c.primary : 'transparent',
+              }}>
               <View style={{ flex: 1 }}>
-                <AppText style={{ fontWeight: '600' }}>{lvl.label}</AppText>
+                <AppText style={{ fontWeight: '700' }}>{lvl.label}</AppText>
                 <AppText variant="small" muted>
                   {lvl.desc}
                 </AppText>
               </View>
               <Ionicons
-                name={active ? 'radio-button-on' : 'radio-button-off'}
-                size={22}
+                name={active ? 'checkmark-circle' : 'ellipse-outline'}
+                size={24}
                 color={active ? c.primary : c.textMuted}
               />
-            </Pressable>
+            </Card>
           );
         })}
       </View>
 
       {/* Step 4: State & Start Date */}
-      <AppText variant="heading" style={styles.sectionTitle}>
-        4. Your State
-      </AppText>
+      <StepTitle n={4} title={`Your State`} />
       <TextField
         label="State / UT"
         placeholder="e.g. Maharashtra"
@@ -344,28 +326,14 @@ export default function OnboardingScreen() {
         onChangeText={setStateNameOverride}
       />
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: space.lg }}>
-        <View style={{ flexDirection: 'row', gap: space.xs }}>
+        <View style={{ flexDirection: 'row', gap: space.sm }}>
           {POPULAR_STATES.map((st) => (
-            <Pressable
-              key={st}
-              onPress={() => setStateNameOverride(st)}
-              style={[
-                styles.chip,
-                {
-                  backgroundColor: stateName === st ? c.primary : c.surface,
-                  borderColor: stateName === st ? c.primary : c.border,
-                },
-              ]}>
-              <AppText
-                variant="small"
-                style={{ color: stateName === st ? c.primaryText : c.text }}>
-                {st}
-              </AppText>
-            </Pressable>
+            <Chip key={st} label={st} selected={stateName === st} onPress={() => setStateNameOverride(st)} />
           ))}
         </View>
       </ScrollView>
 
+      <View style={{ height: space.lg }} />
       <Button title="Save Exam Preferences" onPress={saveAll} loading={busy} />
     </Screen>
   );
@@ -396,9 +364,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   examPickerBox: {
-    maxHeight: 220,
-    borderWidth: 1,
-    borderRadius: radius.md,
+    maxHeight: 240,
+    borderRadius: radius.xl,
     padding: space.sm,
   },
   levelCard: {

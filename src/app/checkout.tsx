@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useQueryClient } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { toApiError } from '@/api/client';
 import {
@@ -12,7 +12,7 @@ import {
   validateCoupon,
   verifySubscriptionPayment,
 } from '@/api/payments';
-import { AppText, Button, ErrorBanner, Screen } from '@/components/ui/kit';
+import { AppText, Button, Card, ErrorBanner, IconTile, Screen, ScreenHeader, SectionHeader } from '@/components/ui/kit';
 import { radius, space, useColors } from '@/theme';
 
 const INDIAN_PAYMENT_METHODS = [
@@ -104,56 +104,36 @@ export default function CheckoutScreen() {
 
   return (
     <Screen>
-      <View style={styles.headerRow}>
-        <Pressable onPress={() => (router.canGoBack() ? router.back() : router.replace('/pricing'))} hitSlop={10}>
-          <Ionicons name="arrow-back" size={24} color={c.text} />
-        </Pressable>
-        <View style={{ flex: 1 }}>
-          <AppText variant="title" style={{ fontSize: 22 }}>
-            Secure Checkout
-          </AppText>
-          <AppText variant="small" muted>
-            UPI, Google Pay, Paytm, Cards & Net Banking
-          </AppText>
-        </View>
-      </View>
+      <ScreenHeader title="Checkout" subtitle="UPI, cards and net banking" onBack={() => (router.canGoBack() ? router.back() : router.replace('/pricing'))} />
 
       {error ? <ErrorBanner message={error} /> : null}
 
       {/* Order Summary */}
-      <View style={[styles.card, { backgroundColor: c.surface, borderColor: c.border }]}>
-        <AppText variant="heading">{params.planName || 'Examerit Pro Plan'}</AppText>
-        <AppText variant="small" muted>
-          Billing Cycle: {billingCycle.toUpperCase()}
-        </AppText>
+      <Card tone="hero" style={{ marginBottom: space.md, gap: 2 }}>
+        <Text style={{ color: c.heroText, fontSize: 20, fontWeight: '800' }}>{params.planName || 'Examerit Pro Plan'}</Text>
+        <Text style={{ color: c.heroMuted, fontSize: 12.5, fontWeight: '700' }}>
+          {billingCycle.toUpperCase()} BILLING
+        </Text>
 
         <View style={styles.priceRow}>
-          <AppText variant="small" muted>
-            Plan Price
-          </AppText>
-          <AppText>₹{baseAmount.toFixed(2)}</AppText>
+          <Text style={{ color: c.heroMuted }}>Plan price</Text>
+          <Text style={{ color: c.heroText, fontWeight: '700' }}>₹{baseAmount.toFixed(2)}</Text>
         </View>
         {discount > 0 ? (
           <View style={styles.priceRow}>
-            <AppText variant="small" style={{ color: c.success }}>
-              Coupon Discount ({appliedCoupon?.code})
-            </AppText>
-            <AppText style={{ color: c.success, fontWeight: '700' }}>
-              -₹{discount.toFixed(2)}
-            </AppText>
+            <Text style={{ color: c.heroMuted }}>Coupon ({appliedCoupon?.code})</Text>
+            <Text style={{ color: c.heroText, fontWeight: '700' }}>-₹{discount.toFixed(2)}</Text>
           </View>
         ) : null}
-        <View style={[styles.priceRow, { borderTopWidth: 1, borderTopColor: c.border, paddingTop: space.sm }]}>
-          <AppText style={{ fontWeight: '700' }}>Total Payable</AppText>
-          <AppText variant="heading" style={{ color: c.primary }}>
-            ₹{finalAmount.toFixed(2)}
-          </AppText>
+        <View style={[styles.priceRow, { borderTopWidth: 1, borderTopColor: c.heroSoft, paddingTop: space.sm, marginTop: space.md }]}>
+          <Text style={{ color: c.heroText, fontWeight: '800' }}>Total payable</Text>
+          <Text style={{ color: c.heroText, fontSize: 24, fontWeight: '800' }}>₹{finalAmount.toFixed(2)}</Text>
         </View>
-      </View>
+      </Card>
 
       {/* Coupon Box */}
-      <View style={[styles.card, { backgroundColor: c.surface, borderColor: c.border }]}>
-        <AppText style={{ fontWeight: '600', marginBottom: 6 }}>Have a Promo / Coupon Code?</AppText>
+      <Card style={{ marginBottom: space.md }}>
+        <AppText style={{ fontWeight: '700', marginBottom: 8 }}>Have a coupon code?</AppText>
         <View style={{ flexDirection: 'row', gap: space.sm }}>
           <TextInput
             placeholder="Enter coupon code"
@@ -163,7 +143,7 @@ export default function CheckoutScreen() {
             autoCapitalize="characters"
             style={[
               styles.couponInput,
-              { backgroundColor: c.bg, color: c.text, borderColor: c.border },
+              { backgroundColor: c.inputBg, color: c.text, borderColor: c.border },
             ]}
           />
           <Button title="Apply" variant="outline" loading={couponBusy} onPress={handleApplyCoupon} />
@@ -173,40 +153,34 @@ export default function CheckoutScreen() {
             ✓ {couponMessage}
           </AppText>
         ) : null}
-      </View>
+      </Card>
 
       {/* Indian Payment Methods */}
-      <AppText variant="heading" style={{ marginVertical: space.sm }}>
-        Select Payment Method
-      </AppText>
-      <View style={{ gap: space.xs, marginBottom: space.lg }}>
+      <SectionHeader title="Payment method" />
+      <View style={{ gap: space.sm, marginBottom: space.lg }}>
         {INDIAN_PAYMENT_METHODS.map((m) => {
           const active = paymentMethod === m.id;
           return (
-            <Pressable
+            <Card
               key={m.id}
               onPress={() => setPaymentMethod(m.id)}
-              style={[
-                styles.methodCard,
-                {
-                  backgroundColor: c.surface,
-                  borderColor: active ? c.primary : c.border,
-                  borderWidth: active ? 2 : 1,
-                },
-              ]}>
-              <Ionicons name={m.icon} size={22} color={active ? c.primary : c.textMuted} />
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: space.md,
+                padding: space.md,
+                borderWidth: 2,
+                borderColor: active ? c.primary : 'transparent',
+              }}>
+              <IconTile icon={m.icon} color={active ? c.primary : c.textMuted} bg={active ? c.primarySoft : c.skeleton} size={40} />
               <View style={{ flex: 1 }}>
-                <AppText style={{ fontWeight: '600' }}>{m.label}</AppText>
+                <AppText style={{ fontWeight: '700' }}>{m.label}</AppText>
                 <AppText variant="small" muted>
                   {m.desc}
                 </AppText>
               </View>
-              <Ionicons
-                name={active ? 'radio-button-on' : 'radio-button-off'}
-                size={20}
-                color={active ? c.primary : c.textMuted}
-              />
-            </Pressable>
+              <Ionicons name={active ? 'checkmark-circle' : 'ellipse-outline'} size={24} color={active ? c.primary : c.textMuted} />
+            </Card>
           );
         })}
       </View>
@@ -221,18 +195,6 @@ export default function CheckoutScreen() {
 }
 
 const styles = StyleSheet.create({
-  headerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space.md,
-    marginBottom: space.md,
-  },
-  card: {
-    padding: space.md,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    marginBottom: space.sm,
-  },
   priceRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -241,16 +203,8 @@ const styles = StyleSheet.create({
   couponInput: {
     flex: 1,
     borderWidth: 1,
-    borderRadius: radius.md,
+    borderRadius: radius.lg,
     paddingHorizontal: space.md,
     fontSize: 15,
   },
-  methodCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: space.md,
-    borderRadius: radius.md,
-    gap: space.md,
-  },
 });
-

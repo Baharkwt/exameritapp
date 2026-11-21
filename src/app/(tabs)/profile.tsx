@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Alert, Pressable, StyleSheet, View } from 'react-native';
+import { Alert, StyleSheet, Text, View } from 'react-native';
 
 import { getStreak } from '@/api/dashboard';
 import { getNotifications } from '@/api/support';
@@ -10,13 +10,15 @@ import { getMe, updateMe } from '@/api/users';
 import {
   AppText,
   Button,
+  Card,
   ErrorView,
+  IconTile,
   LoadingView,
   Screen,
   TextField,
 } from '@/components/ui/kit';
 import { useAuth } from '@/features/auth/auth-provider';
-import { radius, space, useColors } from '@/theme';
+import { space, useColors } from '@/theme';
 
 function Row({ label, value }: { label: string; value?: string | null }) {
   return (
@@ -44,27 +46,21 @@ function MenuItem({
 }) {
   const c = useColors();
   return (
-    <Pressable
-      onPress={onPress}
-      style={[styles.menuRow, { backgroundColor: c.surface, borderColor: c.border }]}>
-      <View style={[styles.iconWrap, { backgroundColor: c.bg }]}>
-        <Ionicons name={icon} size={20} color={c.primary} />
-      </View>
+    <Card onPress={onPress} accessibilityLabel={title} style={{ flexDirection: 'row', alignItems: 'center', gap: space.md, padding: space.md }}>
+      <IconTile icon={icon} color={c.primary} bg={c.primarySoft} size={40} />
       <View style={{ flex: 1 }}>
-        <AppText style={{ fontWeight: '600' }}>{title}</AppText>
-        <AppText variant="small" muted>
+        <AppText style={{ fontWeight: '700' }}>{title}</AppText>
+        <AppText variant="small" muted numberOfLines={1}>
           {subtitle}
         </AppText>
       </View>
       {badge ? (
-        <View style={[styles.badge, { backgroundColor: c.primary }]}>
-          <AppText variant="small" style={{ color: c.primaryText, fontWeight: '700', fontSize: 11 }}>
-            {badge}
-          </AppText>
+        <View style={[styles.badge, { backgroundColor: c.danger }]}>
+          <Text style={{ color: '#fff', fontWeight: '800', fontSize: 11 }}>{badge}</Text>
         </View>
       ) : null}
       <Ionicons name="chevron-forward" size={18} color={c.textMuted} />
-    </Pressable>
+    </Card>
   );
 }
 
@@ -114,52 +110,45 @@ export default function Profile() {
 
   return (
     <Screen>
-      <View style={styles.headerRow}>
-        <View style={{ flex: 1 }}>
-          <AppText variant="title">{p.name}</AppText>
-          <AppText variant="small" muted>
-            {p.email}
-          </AppText>
+      <Card tone="hero" style={{ gap: space.lg }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.md }}>
+          <View style={[styles.avatar, { backgroundColor: c.heroSoft }]}>
+            <Text style={{ color: c.heroText, fontSize: 24, fontWeight: '800' }}>
+              {(p.name || '?').charAt(0).toUpperCase()}
+            </Text>
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={{ color: c.heroText, fontSize: 20, fontWeight: '800', letterSpacing: -0.3 }} numberOfLines={1}>
+              {p.name}
+            </Text>
+            <Text style={{ color: c.heroMuted, fontSize: 13, fontWeight: '600' }} numberOfLines={1}>
+              {p.email}
+            </Text>
+          </View>
+          {!editing ? (
+            <Ionicons name="create-outline" size={22} color={c.heroText} onPress={startEditing} accessibilityLabel="Edit profile" />
+          ) : null}
         </View>
-        {!editing ? (
-          <Pressable
-            onPress={startEditing}
-            style={[styles.editBtn, { backgroundColor: c.surface, borderColor: c.border }]}>
-            <Ionicons name="create-outline" size={16} color={c.primary} />
-            <AppText variant="small" style={{ color: c.primary, fontWeight: '600' }}>
-              Edit
-            </AppText>
-          </Pressable>
-        ) : null}
-      </View>
-
-      {/* Streak & XP Rewards Card */}
-      <View style={[styles.rewardsCard, { backgroundColor: c.surface, borderColor: c.border }]}>
-        <View style={styles.rewardStat}>
-          <AppText variant="small" muted>
-            🔥 Streak
-          </AppText>
-          <AppText variant="heading">{streak?.currentStreak ?? 0}d</AppText>
+        <View style={{ flexDirection: 'row', gap: space.sm }}>
+          {[
+            ['🔥', 'Streak', `${streak?.currentStreak ?? 0}d`],
+            ['🏆', 'Best', `${streak?.longestStreak ?? 0}d`],
+            ['⭐', 'Points', `${streak?.totalPoints ?? 0}`],
+          ].map(([emoji, label, value]) => (
+            <View key={label} style={[styles.rewardStat, { backgroundColor: c.heroSoft }]}>
+              <Text style={{ color: c.heroText, fontWeight: '800', fontSize: 17 }}>
+                {emoji} {value}
+              </Text>
+              <Text style={{ color: c.heroMuted, fontSize: 11, fontWeight: '600' }}>{label}</Text>
+            </View>
+          ))}
         </View>
-        <View style={styles.rewardStat}>
-          <AppText variant="small" muted>
-            🏆 Best Streak
-          </AppText>
-          <AppText variant="heading">{streak?.longestStreak ?? 0}d</AppText>
-        </View>
-        <View style={styles.rewardStat}>
-          <AppText variant="small" muted>
-            ⭐ XP Points
-          </AppText>
-          <AppText variant="heading" style={{ color: c.primary }}>
-            {streak?.totalPoints ?? 0}
-          </AppText>
-        </View>
-      </View>
+      </Card>
+      <View style={{ height: space.md }} />
 
       {/* Profile Details or Inline Edit Form */}
       {editing ? (
-        <View style={[styles.card, { backgroundColor: c.surface, borderColor: c.border, gap: space.md }]}>
+        <Card style={{ gap: space.md, marginBottom: space.lg }}>
           <AppText variant="heading">Edit Profile</AppText>
           <TextField label="Full Name" value={name} onChangeText={setName} />
           <TextField
@@ -187,14 +176,14 @@ export default function Profile() {
               />
             </View>
           </View>
-        </View>
+        </Card>
       ) : (
-        <View style={[styles.card, { backgroundColor: c.surface, borderColor: c.border }]}>
+        <Card style={{ marginBottom: space.lg }}>
           <Row label="Phone" value={p.phone} />
           <Row label="Primary Target Exam" value={p.targetExam} />
           <Row label="State" value={p.state} />
           <Row label="Preparation Level" value={p.preparationLevel?.replace('_', ' ')} />
-        </View>
+        </Card>
       )}
 
       {/* Navigation Links */}
@@ -244,59 +233,7 @@ export default function Profile() {
 }
 
 const styles = StyleSheet.create({
-  headerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: space.md,
-    gap: space.sm,
-  },
-  editBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: space.md,
-    paddingVertical: space.sm,
-    borderRadius: radius.md,
-    borderWidth: 1,
-  },
-  rewardsCard: {
-    flexDirection: 'row',
-    padding: space.md,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    marginBottom: space.md,
-  },
-  rewardStat: {
-    flex: 1,
-    alignItems: 'center',
-    gap: 2,
-  },
-  card: {
-    padding: space.md,
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    marginBottom: space.lg,
-  },
-  menuRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: space.md,
-    paddingVertical: 8,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    gap: space.sm,
-  },
-  iconWrap: {
-    width: 30,
-    height: 30,
-    borderRadius: radius.sm,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  badge: {
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 10,
-  },
+  avatar: { width: 56, height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center' },
+  rewardStat: { flex: 1, paddingVertical: 10, paddingHorizontal: 12, borderRadius: 14, gap: 2 },
+  badge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10 },
 });
