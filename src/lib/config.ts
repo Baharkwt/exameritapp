@@ -29,3 +29,23 @@ function resolveApiOrigin(): string {
 /** Base URL without trailing slash or `/api` suffix. */
 export const API_ORIGIN = resolveApiOrigin();
 export const API_BASE_URL = `${API_ORIGIN}/api`;
+
+/**
+ * Normalizes backend media URLs (`http://localhost:3001/uploads/...` or
+ * `/uploads/...`) so Android Emulators (`10.0.2.2`) and physical devices
+ * fetch them from `API_ORIGIN` instead of loopback on the device itself.
+ */
+export function resolveMediaUrl(url?: string | null): string | undefined {
+  const trimmed = url?.trim();
+  if (!trimmed) return undefined;
+  if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?(\/|$)/i.test(trimmed)) {
+    return trimmed.replace(/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?/i, API_ORIGIN);
+  }
+  if (trimmed.startsWith('/')) {
+    return `${API_ORIGIN}${trimmed}`;
+  }
+  if (!/^https?:\/\//i.test(trimmed) && trimmed.startsWith('uploads/')) {
+    return `${API_ORIGIN}/${trimmed}`;
+  }
+  return trimmed;
+}

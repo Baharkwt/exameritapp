@@ -13,7 +13,6 @@ import {
   getEnrolledCourses,
   getMaterials,
   getMyTopicProgress,
-  getVocabularyPractice,
   StudyMaterial,
 } from '@/api/learning';
 import {
@@ -31,7 +30,10 @@ import {
   Skeleton,
 } from '@/components/ui/kit';
 import { ExamSwitcher } from '@/components/ExamSwitcher';
+import { useGrammarHub, useVocabularyHub } from '@/features/english-hub/useEnglishHub';
+import { VocabWordImage } from '@/features/english-hub/VocabWordImage';
 import { useActiveExam } from '@/features/exam/active-exam';
+import { haptic } from '@/lib/haptics';
 import { elevation, radius, space, useColors } from '@/theme';
 
 function ListSkeleton() {
@@ -55,14 +57,16 @@ export default function LearnHubScreen() {
     queryKey: ['topic-progress', exam?.id ?? 'all'],
     queryFn: () => getMyTopicProgress(exam?.id),
   });
-  const wordQ = useQuery({ queryKey: ['vocab-practice'], queryFn: getVocabularyPractice });
+  const vocab = useVocabularyHub();
+  const grammar = useGrammarHub();
   const newsQ = useQuery({ queryKey: ['current-affairs-shelf'], queryFn: () => getCurrentAffairs({ limit: 4 }) });
 
   const topicRows = progressQ.data ?? [];
   const doneTopics = topicRows.filter((t) => t.state === 'completed' || t.state === 'mastered').length;
   const learningTopics = topicRows.filter((t) => t.state === 'learning').length;
   const continueCourse = (shelfEnrolledQ.data ?? []).find((cr) => Number(cr.progressPct ?? 0) < 100);
-  const word = wordQ.data?.[0];
+  const word = vocab.wordOfTheDay;
+  const grammarDoneCount = grammar.topics.filter((t) => grammar.completedTopics.has(t.id)).length;
   const articles = newsQ.data?.articles ?? [];
 
   const [tab, setTab] = useState<'courses' | 'enrolled' | 'materials'>('courses');
@@ -106,11 +110,20 @@ export default function LearnHubScreen() {
   const shortcuts = [
     { label: 'Syllabus', sub: 'Topic tracker', icon: 'map', color: c.marked, bg: c.markedBg, to: '/syllabus' },
     { label: 'Daily News', sub: 'Current affairs', icon: 'newspaper', color: c.info, bg: c.infoBg, to: '/current-affairs' },
-    { label: 'Vocab', sub: 'Word practice', icon: 'language', color: c.success, bg: c.successBg, to: '/vocabulary' },
+    { label: 'English Hub', sub: 'Vocab & Grammar', icon: 'language', color: c.success, bg: c.successBg, to: '/english-hub' },
   ] as const;
 
+  const refreshing = shelfEnrolledQ.isRefetching || progressQ.isRefetching || newsQ.isRefetching || vocab.isRefetching || grammar.isRefetching;
+  const onRefresh = () => {
+    shelfEnrolledQ.refetch();
+    progressQ.refetch();
+    newsQ.refetch();
+    vocab.refetch();
+    grammar.refetch();
+  };
+
   return (
-    <Screen>
+    <Screen refreshing={refreshing} onRefresh={onRefresh}>
       <AppText variant="title">Learn</AppText>
       <AppText variant="small" muted style={{ marginBottom: space.md }}>
         Courses, notes and daily reading
@@ -177,23 +190,133 @@ export default function LearnHubScreen() {
             </>
           ) : null}
 
-          {word ? (
-            <>
-              <SectionHeader title="Word of the day" action="Practice" onAction={() => router.push('/vocabulary')} />
-              <Card tone="soft" onPress={() => router.push('/vocabulary')} style={{ gap: 6 }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                  <Text style={{ color: c.primary, fontSize: 22, fontWeight: '800', letterSpacing: -0.4 }}>{word.word}</Text>
-                  {word.part_of_speech ? <Badge label={word.part_of_speech} tone="primary" /> : null}
+          <SectionHeader
+            title="English Hub"
+            action="Open Hub"
+            onAction={() => router.push('/english-hub')}
+          />
+
+          <View style={{ gap: space.sm }}>
+            {word ? (
+              <Card
+                tone="soft"
+                onPress={() =>
+                  router.push({ pathname: '/english-hub', params: { tab: 'vocabulary', view: 'wordofday' } })
+                }
+                style={{ gap: 8 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                  <Badge label="Word of the day" tone="primary" />
+                  {vocab.wordProgressMap.get(word.id)?.status === 'mastered' ? (
+                    <Badge label="Mastered" tone="success" />
+                  ) : vocab.wordProgressMap.get(word.id)?.status === 'learning' ? (
+                    <Badge label="In Revision" tone="warning" />
+                  ) : null}
                 </View>
-                <AppText variant="small">{word.definition}</AppText>
-                {word.example_sentence ? (
+
+                <View style={{ flexDirection: 'row', alignItems: 'baseline', flexWrap: 'wrap', gap: 8 }}>
+                  <Text style={{ color: c.primary, fontSize: 22, fontWeight: '800', letterSpacing: -0.4 }}>
+                    {word.word}
+                  </Text>
+                  {word.partOfSpeech ? <Badge label={word.partOfSpeech} tone="info" /> : null}
+                  {word.pronunciation ? (
+                    <Text style={{ color: c.textMuted, fontSize: 12.5, fontWeight: '600' }}>
+                      {word.pronunciation}
+                    </Text>
+                  ) : null}
+                </View>
+
+                <AppText variant="small" style={{ fontWeight: '600' }}>
+                  {word.meaning}
+                </AppText>
+
+                <VocabWordImage word={word} height={145} />
+
+                {word.example ? (
                   <AppText variant="small" muted style={{ fontStyle: 'italic' }}>
-                    “{word.example_sentence}”
+                    “{word.example}”
                   </AppText>
                 ) : null}
+
+                <View style={{ flexDirection: 'row', gap: 8, marginTop: 4 }}>
+                  <Pressable
+                    accessibilityRole="button"
+                    onPress={() => {
+                      haptic.light();
+                      vocab.markWordSelfAssessment(word.id, 'need_revision');
+                    }}
+                    style={[
+                      styles.hubPillBtn,
+                      { backgroundColor: c.surface, borderColor: c.border, borderWidth: 1 },
+                    ]}>
+                    <Ionicons name="repeat" size={14} color={c.warning} />
+                    <Text style={{ color: c.text, fontWeight: '700', fontSize: 12.5 }}>
+                      Need Revision
+                    </Text>
+                  </Pressable>
+                  <Pressable
+                    accessibilityRole="button"
+                    onPress={() => {
+                      haptic.success();
+                      vocab.markWordSelfAssessment(word.id, 'i_know');
+                    }}
+                    style={[styles.hubPillBtn, { backgroundColor: c.primary }]}>
+                    <Ionicons name="checkmark" size={14} color={c.primaryText} />
+                    <Text style={{ color: c.primaryText, fontWeight: '700', fontSize: 12.5 }}>
+                      I Know This
+                    </Text>
+                  </Pressable>
+                </View>
               </Card>
-            </>
-          ) : null}
+            ) : null}
+
+            <View style={{ flexDirection: 'row', gap: space.sm }}>
+              <Card
+                onPress={() =>
+                  router.push({ pathname: '/english-hub', params: { tab: 'vocabulary' } })
+                }
+                style={{ flex: 1, padding: space.md, gap: 8 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <IconTile icon="albums" color={c.success} bg={c.successBg} size={36} />
+                  {vocab.stats.revisionDue > 0 ? (
+                    <Badge label={`${vocab.stats.revisionDue} due`} tone="warning" />
+                  ) : null}
+                </View>
+                <View>
+                  <AppText style={{ fontWeight: '800', fontSize: 15 }}>Vocabulary</AppText>
+                  <AppText variant="small" muted numberOfLines={2}>
+                    {vocab.stats.mastered} mastered · {vocab.lessons.length} lessons
+                  </AppText>
+                </View>
+                <Text style={{ color: c.primary, fontWeight: '700', fontSize: 12 }}>
+                  Lessons & Revision →
+                </Text>
+              </Card>
+
+              <Card
+                onPress={() =>
+                  router.push({ pathname: '/english-hub', params: { tab: 'grammar' } })
+                }
+                style={{ flex: 1, padding: space.md, gap: 8 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <IconTile icon="library" color={c.info} bg={c.infoBg} size={36} />
+                  {grammar.topics.length > 0 ? (
+                    <Badge label={`${grammarDoneCount}/${grammar.topics.length}`} tone="info" />
+                  ) : null}
+                </View>
+                <View>
+                  <AppText style={{ fontWeight: '800', fontSize: 15 }}>Grammar Hub</AppText>
+                  <AppText variant="small" muted numberOfLines={2}>
+                    {grammar.recentlyViewed[0]
+                      ? `Next: ${grammar.recentlyViewed[0].topicName}`
+                      : `${grammar.levels.length} levels · Rules & Quiz`}
+                  </AppText>
+                </View>
+                <Text style={{ color: c.primary, fontWeight: '700', fontSize: 12 }}>
+                  Open Syllabus →
+                </Text>
+              </Card>
+            </View>
+          </View>
 
           {articles.length > 0 ? (
             <>
@@ -349,4 +472,13 @@ const styles = StyleSheet.create({
     marginVertical: space.md,
   },
   searchInput: { flex: 1, fontSize: 15 },
+  hubPillBtn: {
+    flex: 1,
+    minHeight: 40,
+    borderRadius: radius.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
 });

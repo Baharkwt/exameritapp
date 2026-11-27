@@ -72,7 +72,7 @@ export default function Home() {
     { label: 'Live Arena', icon: 'radio', color: c.live, bg: c.liveBg, to: '/live-tests' },
     { label: 'Syllabus', icon: 'map', color: c.marked, bg: c.markedBg, to: '/syllabus' },
     { label: 'Daily News', icon: 'newspaper', color: c.success, bg: c.successBg, to: '/current-affairs' },
-    { label: 'Vocab', icon: 'language', color: c.info, bg: c.infoBg, to: '/vocabulary' },
+    { label: 'English Hub', icon: 'language', color: c.info, bg: c.infoBg, to: '/english-hub' },
     { label: 'Mistakes', icon: 'journal', color: c.warning, bg: c.warningBg, to: '/mistakes' },
     { label: 'Leaderboard', icon: 'trophy', color: c.star, bg: c.warningBg, to: '/leaderboard' },
     { label: 'All Exams', icon: 'school', color: c.info, bg: c.infoBg, to: '/exams' },

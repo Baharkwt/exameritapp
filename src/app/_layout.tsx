@@ -37,6 +37,7 @@ function RootStack() {
         <Stack.Screen name="current-affairs/index" />
         <Stack.Screen name="current-affairs/[id]" />
         <Stack.Screen name="vocabulary" />
+        <Stack.Screen name="english-hub" />
         <Stack.Screen name="subscription" />
         <Stack.Screen name="pricing" />
         <Stack.Screen name="checkout" />
